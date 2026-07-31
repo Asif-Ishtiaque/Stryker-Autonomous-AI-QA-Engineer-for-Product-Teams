@@ -1,0 +1,45 @@
+fastapi>=0.115
+uvicorn[standard]>=0.32
+pydantic>=2.9
+pydantic-settings>=2.6
+sqlalchemy[asyncio]>=2.0.36
+asyncpg>=0.30
+alembic>=1.14
+redis>=5.2
+celery[redis]>=5.4
+chromadb>=0.5.20
+minio>=7.2
+opensearch-py>=2.8
+langgraph>=0.2.60
+langchain-core>=0.3.25
+openai>=1.57
+sentence-transformers>=3.3
+playwright>=1.49,<1.57
+# app.evidence.capture and app.agents.executors.web.locator_engine both call
+# page.accessibility.snapshot() (the legacy Playwright Accessibility API). It was removed outright
+# in playwright 1.57 ("'Page' object has no attribute 'accessibility'") — every single web-executed
+# step would crash. Pin below the removal until that code is migrated to Locator.aria_snapshot().
+pypdf>=5.1
+python-docx>=1.1.2
+pandas>=2.2
+pytesseract>=0.3.13
+Pillow>=11.0
+markdown-it-py>=3.0
+weasyprint>=63.1
+pyjwt>=2.10
+passlib[bcrypt]>=1.7.4
+# passlib 1.7.4's bcrypt backend self-test (detect_wrap_bug) calls bcrypt.hashpw() with a >72-byte
+# secret; bcrypt>=4.1 enforces the 72-byte limit strictly and raises ValueError instead of the
+# silent truncation earlier versions did, which breaks EVERY password hash/verify call (i.e. all
+# registration/login) on import. Pin below the breaking change until passlib ships a fix.
+bcrypt<4.1
+cryptography>=43.0
+structlog>=24.4
+opentelemetry-sdk>=1.29
+opentelemetry-instrumentation-fastapi>=0.50b0
+opentelemetry-instrumentation-sqlalchemy>=0.50b0
+opentelemetry-exporter-otlp-proto-grpc>=1.29
+prometheus-fastapi-instrumentator>=7.0
+httpx>=0.28
+python-multipart>=0.0.17
+email-validator>=2.2

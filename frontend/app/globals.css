@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light mode (fallback — dark is the default experience) */
+    --background: 0 0% 100%;
+    --foreground: 240 10% 8%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 8%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 8%;
+    --primary: 250 84% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 5% 96%;
+    --secondary-foreground: 240 10% 8%;
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
+    --accent: 240 5% 94%;
+    --accent-foreground: 240 10% 8%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 152 60% 40%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 10%;
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
+    --ring: 250 84% 60%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 240 14% 6%;
+    --foreground: 240 10% 94%;
+    --card: 240 13% 9%;
+    --card-foreground: 240 10% 94%;
+    --popover: 240 14% 8%;
+    --popover-foreground: 240 10% 94%;
+    --primary: 250 90% 66%;
+    --primary-foreground: 240 14% 6%;
+    --secondary: 240 10% 14%;
+    --secondary-foreground: 240 10% 94%;
+    --muted: 240 10% 14%;
+    --muted-foreground: 240 6% 62%;
+    --accent: 240 10% 16%;
+    --accent-foreground: 240 10% 94%;
+    --destructive: 0 84% 62%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 152 55% 48%;
+    --success-foreground: 240 14% 6%;
+    --warning: 38 92% 58%;
+    --warning-foreground: 240 14% 6%;
+    --border: 240 10% 18%;
+    --input: 240 10% 18%;
+    --ring: 250 90% 66%;
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+  html {
+    color-scheme: dark;
+  }
+  html.light {
+    color-scheme: light;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-card/60 backdrop-blur-xl border border-white/10;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  html:not(.dark):not(.light) {
+    color-scheme: light;
+  }
+}

@@ -1,0 +1,73 @@
+[project]
+name = "stryker-backend"
+version = "0.1.0"
+description = "Stryker — the autonomous AI QA engineer. Backend service."
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.32",
+  "pydantic>=2.9",
+  "pydantic-settings>=2.6",
+  "sqlalchemy[asyncio]>=2.0.36",
+  "asyncpg>=0.30",
+  "alembic>=1.14",
+  "redis>=5.2",
+  "celery[redis]>=5.4",
+  "chromadb>=0.5.20",
+  "minio>=7.2",
+  "opensearch-py>=2.8",
+  "langgraph>=0.2.60",
+  "langchain-core>=0.3.25",
+  "openai>=1.57",
+  "sentence-transformers>=3.3",
+  "playwright>=1.49,<1.57",
+  # page.accessibility.snapshot() (used in app.evidence.capture and
+  # app.agents.executors.web.locator_engine) was removed in playwright 1.57 — see requirements.txt.
+  "pypdf>=5.1",
+  "python-docx>=1.1.2",
+  "pandas>=2.2",
+  "pytesseract>=0.3.13",
+  "Pillow>=11.0",
+  "markdown-it-py>=3.0",
+  "weasyprint>=63.1",
+  "pyjwt>=2.10",
+  "passlib[bcrypt]>=1.7.4",
+  # passlib 1.7.4's bcrypt backend self-test breaks under bcrypt>=4.1 (see requirements.txt) —
+  # ValueError: password cannot be longer than 72 bytes, raised on the very first hash/verify call.
+  "bcrypt<4.1",
+  "cryptography>=43.0",
+  "structlog>=24.4",
+  "opentelemetry-sdk>=1.29",
+  "opentelemetry-instrumentation-fastapi>=0.50b0",
+  "opentelemetry-instrumentation-sqlalchemy>=0.50b0",
+  "opentelemetry-exporter-otlp-proto-grpc>=1.29",
+  "prometheus-fastapi-instrumentator>=7.0",
+  "httpx>=0.28",
+  "python-multipart>=0.0.17",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3",
+  "pytest-asyncio>=0.24",
+  "pytest-cov>=6.0",
+  "ruff>=0.8",
+  "mypy>=1.13",
+  "faker>=33.0",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

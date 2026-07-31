@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.venv-*/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+backend/.env
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+frontend/.env*
+!frontend/.env.example
+
+# Env
+.env
+!.env.example
+
+# Data / infra volumes
+data/
+minio-data/
+postgres-data/
+chroma-data/
+opensearch-data/
+grafana-data/
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log

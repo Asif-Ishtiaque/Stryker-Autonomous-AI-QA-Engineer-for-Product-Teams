@@ -1,0 +1,15 @@
+FROM mcr.microsoft.com/playwright/python:v1.49.0-noble
+
+WORKDIR /srv
+
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY . .
+
+RUN playwright install --with-deps chromium
+
+CMD ["celery", "-A", "app.execution.celery_app", "worker", "--loglevel=info", "--concurrency=4"]
