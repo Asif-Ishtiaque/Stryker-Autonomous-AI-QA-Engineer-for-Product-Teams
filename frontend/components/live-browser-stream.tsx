@@ -8,6 +8,32 @@ import { cn } from "@/lib/utils";
 type StreamState = "connecting" | "live" | "ended" | "error";
 
 /**
+ * setLocalDescription() does NOT wait for ICE candidate gathering — candidates
+ * normally arrive afterward via onicecandidate (trickle ICE). Since this
+ * component sends exactly one SDP offer and never trickles further
+ * candidates, that offer must already contain them, or the backend has no
+ * way to reach this browser and ICE sits in "checking" until it times out.
+ */
+function waitForIceGatheringComplete(pc: RTCPeerConnection): Promise<void> {
+  if (pc.iceGatheringState === "complete") return Promise.resolve();
+  return new Promise((resolve) => {
+    const onChange = () => {
+      if (pc.iceGatheringState === "complete") {
+        pc.removeEventListener("icegatheringstatechange", onChange);
+        resolve();
+      }
+    };
+    pc.addEventListener("icegatheringstatechange", onChange);
+    // Safety net: proceed with whatever candidates exist so far rather than
+    // hanging forever if gathering stalls (e.g. a slow/unreachable STUN server).
+    setTimeout(() => {
+      pc.removeEventListener("icegatheringstatechange", onChange);
+      resolve();
+    }, 4000);
+  });
+}
+
+/**
  * True WebRTC live view of the browser a run is actually executing in.
  *
  * Signaling goes over `${WS_BASE}/api/v1/ws/runs/{runId}/stream` (see
@@ -52,6 +78,7 @@ export function LiveBrowserStream({ runId, enabled }: { runId: string; enabled: 
       try {
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
+        await waitForIceGatheringComplete(pc);
         socket.send(JSON.stringify({ type: "offer", sdp: pc.localDescription?.sdp }));
       } catch {
         if (!cancelled) setState("error");
