@@ -7,8 +7,6 @@ convention/default to apply. Adding a genuinely different wire protocol later
 """
 from __future__ import annotations
 
-from functools import lru_cache
-
 from app.core.config import Settings, get_settings
 from app.llm.base import LLMProvider
 from app.llm.providers.openai_compatible import OpenAICompatibleProvider
@@ -25,6 +23,15 @@ def build_llm_provider(settings: Settings) -> LLMProvider:
     raise ValueError(f"Unsupported LLM provider: {settings.llm_provider}")
 
 
-@lru_cache
 def get_llm_provider() -> LLMProvider:
+    # Deliberately NOT @lru_cache'd. The provider owns an AsyncOpenAI client, whose
+    # underlying httpx connection pool binds to whatever asyncio event loop is running
+    # when it's first used. That's fine for FastAPI (one event loop for the process's
+    # whole life) but not for Celery: each task runs via asyncio.run(), which tears the
+    # loop down when the task finishes. A cached client from task N reused in task N+1
+    # (same worker process, fresh loop) doesn't cleanly error like the DB pool did (see
+    # dispose_stale_pool in app/db/session.py for that sibling bug) — it silently hangs
+    # forever on the next request instead, which is far worse: no error, no timeout, the
+    # run just sits at "planning" indefinitely. Constructing a fresh client per call is
+    # negligible cost next to actual LLM call latency (60-150s+ against local CPU inference).
     return build_llm_provider(get_settings())
