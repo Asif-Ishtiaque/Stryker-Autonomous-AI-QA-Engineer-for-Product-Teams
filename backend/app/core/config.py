@@ -51,6 +51,12 @@ class Settings(BaseSettings):
 
     # --- Object storage (evidence artifacts) ---
     minio_endpoint: str = "minio:9000"
+    # Presigned URLs are handed to the BROWSER, which is outside the Docker network and can't
+    # resolve "minio" — it needs the host-mapped address instead. This must be a distinct
+    # setting, not a runtime rewrite of minio_endpoint's host in the returned URL: S3v4
+    # signatures sign the Host header, so swapping it after signing invalidates the signature.
+    # A second Minio client, constructed with this endpoint, signs for the right host from the start.
+    minio_public_endpoint: str = "localhost:9000"
     minio_access_key: str = "stryker"
     minio_secret_key: str = "stryker-secret"
     minio_secure: bool = False

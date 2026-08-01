@@ -21,6 +21,26 @@ class EvidenceStorage:
             secret_key=settings.minio_secret_key,
             secure=settings.minio_secure,
         )
+        # Separate client for presigned URLs, which the BROWSER loads directly — it must sign
+        # for the browser-reachable host (minio_public_endpoint), not the internal Docker
+        # service name (minio_endpoint) the backend itself uses for put/get. See the comment
+        # on minio_public_endpoint in app.core.config for why this can't just be a URL rewrite.
+        #
+        # region="us-east-1" is required here, not optional: without an explicit region,
+        # minio-py's presigned_get_object() first calls GetBucketLocation against the client's
+        # configured endpoint to resolve it — a real network round-trip. From inside this
+        # container, minio_public_endpoint (localhost:9000) resolves to the container's own
+        # loopback, where nothing is listening, so that lookup fails with connection-refused
+        # and the whole call raises. Passing the region explicitly (matching what the bucket
+        # was actually created with) skips that lookup entirely — signing becomes pure local
+        # computation, so this client never needs to be reachable at all.
+        self._public_client = Minio(
+            settings.minio_public_endpoint,
+            access_key=settings.minio_access_key,
+            secret_key=settings.minio_secret_key,
+            secure=settings.minio_secure,
+            region="us-east-1",
+        )
         self._bucket = settings.minio_evidence_bucket
         self._ensure_bucket()
 
@@ -44,7 +64,9 @@ class EvidenceStorage:
     def presigned_url(self, key: str, expires_seconds: int = 3600) -> str:
         import datetime as dt
 
-        return self._client.presigned_get_object(self._bucket, key, expires=dt.timedelta(seconds=expires_seconds))
+        return self._public_client.presigned_get_object(
+            self._bucket, key, expires=dt.timedelta(seconds=expires_seconds)
+        )
 
 
 @lru_cache

@@ -112,6 +112,11 @@ services:
       CHROMA_HOST: chroma
       CHROMA_PORT: 8000
       MINIO_ENDPOINT: minio:9000
+      # MINIO_PUBLIC_ENDPOINT is deliberately NOT set here — its default (localhost:9000)
+      # already matches the "9000:9000" port mapping below, and it's what presigned evidence
+      # URLs are signed for so the BROWSER (not this container) can load them. Override it if
+      # you access the app through anything other than localhost (a custom domain, a remote
+      # Docker host, etc.) — see docs/DEPLOYMENT.md.
       OPENSEARCH_URL: http://opensearch:9200
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       LLM_BASE_URL: http://host.docker.internal:11434/v1
@@ -139,6 +144,11 @@ services:
       CHROMA_HOST: chroma
       CHROMA_PORT: 8000
       MINIO_ENDPOINT: minio:9000
+      # MINIO_PUBLIC_ENDPOINT is deliberately NOT set here — its default (localhost:9000)
+      # already matches the "9000:9000" port mapping below, and it's what presigned evidence
+      # URLs are signed for so the BROWSER (not this container) can load them. Override it if
+      # you access the app through anything other than localhost (a custom domain, a remote
+      # Docker host, etc.) — see docs/DEPLOYMENT.md.
       OPENSEARCH_URL: http://opensearch:9200
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       LLM_BASE_URL: http://host.docker.internal:11434/v1
