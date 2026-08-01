@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { EvidenceImage, EvidenceVideo } from "@/components/evidence-media";
+import { EvidenceHtmlSnapshot, EvidenceImage, EvidenceVideo } from "@/components/evidence-media";
 import { EvidenceType } from "@/lib/types";
 import type { EvidenceOut } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -139,8 +139,11 @@ function TabContent({
       return (
         <div className="space-y-3">
           {items.map((item) =>
-            item.storage_key ? (
-              <EvidenceImage key={item.id} projectId={projectId} runId={runId} evidenceId={item.id} enabled={enabled} alt="DOM snapshot" />
+            // DOM_SNAPSHOT is a raw .html file in MinIO — rendered as text, never as an <img>
+            // (an HTML payload behind EvidenceImage is just a permanent broken-image icon).
+            // ACCESSIBILITY_TREE is small inline JSON with no storage_key at all.
+            item.evidence_type === EvidenceType.DOM_SNAPSHOT ? (
+              <EvidenceHtmlSnapshot key={item.id} projectId={projectId} runId={runId} evidenceId={item.id} enabled={enabled} />
             ) : (
               <InlineDataView key={item.id} data={item.inline_data} />
             ),
