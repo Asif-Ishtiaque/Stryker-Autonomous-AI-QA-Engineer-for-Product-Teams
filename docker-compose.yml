@@ -184,6 +184,17 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      # NEXT_PUBLIC_* vars are inlined into the client bundle at build time (see the comment
+      # in frontend/Dockerfile) — setting them under `environment:` below has no effect on
+      # them; they must be passed here instead. TURN_* must match the coturn service's
+      # --user/--external-ip so the browser's own peer connection can gather a relay candidate
+      # too (see the comment in components/live-browser-stream.tsx for why that's needed).
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+        NEXT_PUBLIC_WS_URL: ws://localhost:8000
+        NEXT_PUBLIC_TURN_URL: turn:localhost:3478
+        NEXT_PUBLIC_TURN_USERNAME: stryker
+        NEXT_PUBLIC_TURN_CREDENTIAL: stryker-turn-secret
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
       NEXT_PUBLIC_WS_URL: ws://localhost:8000

@@ -55,11 +55,21 @@ export function LiveBrowserStream({ runId, enabled }: { runId: string; enabled: 
     let cancelled = false;
     setState("connecting");
 
-    // No STUN/TURN needed on this side: the backend's own host candidate is an internal Docker
-    // address the browser can't reach, so it relays through coturn (see backend/app/api/routers/
-    // stream.py) — that relay candidate is published at 127.0.0.1, which this browser's own
-    // plain host candidate can already reach directly.
-    const pc = new RTCPeerConnection();
+    // TURN is needed on THIS side too, not just the backend's: Chrome obfuscates host
+    // candidates as mDNS ".local" hostnames by default (a privacy feature), and aiortc
+    // (the Python backend) has no mDNS resolver — every host candidate this browser offers
+    // is one the backend can never resolve, regardless of network reachability. Relay
+    // candidates are never mDNS-obfuscated, so giving this side the same TURN server lets
+    // both peers negotiate over real relay addresses (127.0.0.1:<port> via coturn) instead.
+    const pc = new RTCPeerConnection({
+      iceServers: [
+        {
+          urls: process.env.NEXT_PUBLIC_TURN_URL ?? "turn:localhost:3478",
+          username: process.env.NEXT_PUBLIC_TURN_USERNAME ?? "stryker",
+          credential: process.env.NEXT_PUBLIC_TURN_CREDENTIAL ?? "stryker-turn-secret",
+        },
+      ],
+    });
     pc.addTransceiver("video", { direction: "recvonly" });
 
     pc.ontrack = (event) => {
