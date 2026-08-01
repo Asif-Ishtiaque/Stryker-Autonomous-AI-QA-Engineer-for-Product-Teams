@@ -7,13 +7,22 @@ asyncpg>=0.30
 alembic>=1.14
 redis>=5.2
 celery[redis]>=5.4
-chromadb>=0.5.20
+chromadb==0.5.20
+# Pinned exactly (not >=) to match the chromadb/chroma:0.5.20 server image in
+# docker-compose.yml. chromadb's client<->server wire protocol is NOT stable across
+# versions — an unpinned floor here resolved to client 1.5.9 against a 0.5.20 server and
+# every collection call failed with `Exception: {"error":"KeyError('_type')"}`. Bump both
+# together deliberately, never let the client drift ahead of the pinned server image.
 minio>=7.2
 opensearch-py>=2.8
 langgraph>=0.2.60
 langchain-core>=0.3.25
 openai>=1.57
 sentence-transformers>=3.3
+# torch (pulled in by sentence-transformers) is installed separately as a CPU-only wheel in
+# the Dockerfile, before this file — see the comment there. Listing it here too would let pip
+# silently pull the CUDA-enabled build if this file is ever installed standalone (e.g. locally,
+# outside Docker), so it's intentionally left implicit/transitive rather than pinned here.
 playwright>=1.49,<1.57
 # app.evidence.capture and app.agents.executors.web.locator_engine both call
 # page.accessibility.snapshot() (the legacy Playwright Accessibility API). It was removed outright

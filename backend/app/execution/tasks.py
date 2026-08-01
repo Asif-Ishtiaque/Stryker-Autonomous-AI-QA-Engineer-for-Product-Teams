@@ -72,22 +72,27 @@ async def _run_requirement_async(run_id: uuid.UUID) -> None:
         async def on_event(event: dict) -> None:
             publish_sync(run_id, {"run_id": str(run_id), **event})
 
-        knowledge_context = context_snippets_for_requirement(project.id, requirement.text) if project else []
-
-        initial_state = {
-            "run_id": str(run_id),
-            "project_id": str(project.id),
-            "platform": str(project.platform),
-            "base_url": project.base_url,
-            "requirement_text": requirement.text,
-            "knowledge_context": knowledge_context,
-            "credential": credential_dict,
-            "plan_retry_count": 0,
-        }
-
-        graph = build_run_graph(get_llm_provider(), on_event)
-
+        # Everything from here through graph execution is wrapped in one broad try/except.
+        # A run must NEVER be left stuck at an intermediate status (e.g. "planning") because
+        # some step before the graph itself — knowledge retrieval, credential handling, LLM
+        # provider construction — threw. Any failure here is still a real, reportable outcome
+        # for the user, so it's persisted as ERRORED and published, exactly like a graph-level
+        # crash below.
         try:
+            knowledge_context = context_snippets_for_requirement(project.id, requirement.text) if project else []
+
+            initial_state = {
+                "run_id": str(run_id),
+                "project_id": str(project.id),
+                "platform": str(project.platform),
+                "base_url": project.base_url,
+                "requirement_text": requirement.text,
+                "knowledge_context": knowledge_context,
+                "credential": credential_dict,
+                "plan_retry_count": 0,
+            }
+
+            graph = build_run_graph(get_llm_provider(), on_event)
             final_state = await graph.ainvoke(initial_state, config={"recursion_limit": 50})
         except Exception as exc:  # noqa: BLE001 — persisted as an errored run, not swallowed
             logger.error("run_task.crashed", run_id=str(run_id), error=str(exc))

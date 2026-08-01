@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 
 from app.agents.state import RunState
-from app.llm.base import ChatMessage, LLMProvider
+from app.llm.base import ChatMessage, LLMProvider, parse_json_object
 
 SCHEMA = {
     "type": "object",
@@ -67,6 +67,6 @@ async def run_validator_agent(state: RunState, llm: LLMProvider) -> RunState:
         [ChatMessage(role="system", content=SYSTEM_PROMPT), ChatMessage(role="user", content=user_prompt)],
         json_schema=SCHEMA,
     )
-    parsed = json.loads(raw)
+    parsed = parse_json_object(raw)
 
     return {**state, "validation_findings": parsed["findings"]}

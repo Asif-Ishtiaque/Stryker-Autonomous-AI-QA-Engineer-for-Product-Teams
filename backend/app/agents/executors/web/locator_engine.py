@@ -28,7 +28,7 @@ from typing import Any
 
 from playwright.async_api import Locator, Page
 
-from app.llm.base import ChatMessage, LLMProvider
+from app.llm.base import ChatMessage, LLMProvider, parse_json_object
 
 
 @dataclass
@@ -169,8 +169,8 @@ class SelfHealingLocator:
             },
         )
         try:
-            parsed = json.loads(raw)
-        except json.JSONDecodeError:
+            parsed = parse_json_object(raw)
+        except (json.JSONDecodeError, ValueError):
             return None
 
         index = parsed.get("index", -1)

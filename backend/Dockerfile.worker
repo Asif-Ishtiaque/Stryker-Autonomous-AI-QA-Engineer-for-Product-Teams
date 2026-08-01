@@ -2,6 +2,11 @@ FROM mcr.microsoft.com/playwright/python:v1.49.0-noble
 
 WORKDIR /srv
 
+# See the matching comment in Dockerfile: force the CPU-only torch wheel before
+# requirements.txt pulls it in transitively via sentence-transformers, or pip grabs the
+# CUDA-enabled build (several GB of unused NVIDIA runtime packages) instead.
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 

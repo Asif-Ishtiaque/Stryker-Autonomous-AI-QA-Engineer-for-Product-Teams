@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 
 from app.agents.state import RunState
-from app.llm.base import ChatMessage, LLMProvider
+from app.llm.base import ChatMessage, LLMProvider, parse_json_object
 
 ROOT_CAUSE_SCHEMA = {
     "type": "object",
@@ -86,7 +86,7 @@ async def run_comparator_agent(state: RunState, llm: LLMProvider) -> RunState:
             ],
             json_schema=ROOT_CAUSE_SCHEMA,
         )
-        parsed = json.loads(raw)
+        parsed = parse_json_object(raw)
         root_cause_hypothesis = parsed["root_cause_hypothesis"]
         severity = parsed["severity"]
 

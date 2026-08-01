@@ -13,7 +13,7 @@ dependencies = [
   "alembic>=1.14",
   "redis>=5.2",
   "celery[redis]>=5.4",
-  "chromadb>=0.5.20",
+  "chromadb==0.5.20",  # pinned to match the chroma server image in docker-compose.yml — see requirements.txt
   "minio>=7.2",
   "opensearch-py>=2.8",
   "langgraph>=0.2.60",

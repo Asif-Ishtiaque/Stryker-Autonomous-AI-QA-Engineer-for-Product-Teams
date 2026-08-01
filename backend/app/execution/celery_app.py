@@ -21,5 +21,6 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
     worker_max_tasks_per_child=200,
     task_acks_late=True,
-    task_time_limit=60 * 10,
+    task_time_limit=settings.run_task_time_limit_seconds,
+    task_soft_time_limit=max(settings.run_task_time_limit_seconds - 60, 1),
 )

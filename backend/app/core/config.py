@@ -70,7 +70,11 @@ class Settings(BaseSettings):
     llm_base_url: str = "http://ollama:11434/v1"
     llm_api_key: str = "not-needed"
     llm_temperature: float = 0.1
-    llm_request_timeout_seconds: int = 120
+    # A single call against local CPU inference (the default LLM_PROVIDER=ollama) has been
+    # observed taking 60-150s+ depending on prompt/response size — 120s was too tight and
+    # produced a plain "Request timed out." error mid-pipeline. Generous default; lower it
+    # for a fast hosted API where a hung request should fail fast instead.
+    llm_request_timeout_seconds: int = 300
 
     # --- Embeddings provider (RAG) ---
     embedding_model: str = "BAAI/bge-small-en-v1.5"
@@ -82,6 +86,13 @@ class Settings(BaseSettings):
     max_plan_retries: int = 2
     default_step_timeout_ms: int = 15000
     max_concurrent_runs: int = 50
+    # A run makes several sequential LLM calls (requirement, planner, executor's locator
+    # fallback, validator, comparator, report) plus real browser execution. Against a fast
+    # hosted API this finishes in well under a minute; against local CPU inference (the
+    # default LLM_PROVIDER=ollama) a single call alone can take 60-120s+, so the Celery hard
+    # time limit needs real headroom — 600s was observed killing a run mid-validation via
+    # SIGKILL. Tune this down for fast providers, up further for very slow local hardware.
+    run_task_time_limit_seconds: int = 1800
 
 
 @lru_cache
