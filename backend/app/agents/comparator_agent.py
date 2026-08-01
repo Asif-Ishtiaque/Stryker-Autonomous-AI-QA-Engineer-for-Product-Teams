@@ -46,11 +46,16 @@ def _compute_confidence(state: RunState) -> tuple[float, str]:
     failed_steps = [s for s in step_results if s["status"] == "failed"]
     step_pass_ratio = 1.0 - (len(failed_steps) / len(step_results)) if step_results else 0.0
 
-    finding_confidences = [f["confidence"] for f in findings]
+    # Defensive clamp: the ValidatorAgent's JSON schema asks for confidence in [0, 1], but a
+    # smaller local model doesn't reliably respect that (observed returning categorical-looking
+    # values like 0/1/2, or worse) — trusting it unclamped let a single bad finding blow the
+    # final score past 1.0 (seen: 23.8857, i.e. "2389% confidence" in the UI). Every value this
+    # function reads from the LLM is clamped at the point of use, not just at the schema layer.
+    finding_confidences = [max(0.0, min(1.0, f["confidence"])) for f in findings]
     avg_finding_confidence = sum(finding_confidences) / len(finding_confidences) if finding_confidences else 0.0
     outcome_ratio = len(met) / len(findings) if findings else 0.0
 
-    score = round((0.5 * outcome_ratio + 0.3 * avg_finding_confidence + 0.2 * step_pass_ratio), 4)
+    score = round(max(0.0, min(1.0, 0.5 * outcome_ratio + 0.3 * avg_finding_confidence + 0.2 * step_pass_ratio)), 4)
 
     if not_met or failed_steps:
         final_status = "failed"

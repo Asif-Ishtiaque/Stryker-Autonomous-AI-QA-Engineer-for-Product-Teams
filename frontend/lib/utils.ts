@@ -19,7 +19,10 @@ export function formatDuration(ms: number | null | undefined): string {
 /** Formats a 0..1 confidence score as a percentage string. */
 export function formatConfidence(score: number | null | undefined): string {
   if (score == null) return "—";
-  return `${Math.round(score * 100)}%`;
+  // Clamp defensively — matches ConfidenceGauge. The backend now clamps confidence at the
+  // source, but a value already sitting in the DB from before that fix (or any future write
+  // path that forgets to) should never render as a nonsensical "2389%".
+  return `${Math.round(Math.max(0, Math.min(1, score)) * 100)}%`;
 }
 
 export function formatDate(value: string | Date | null | undefined): string {

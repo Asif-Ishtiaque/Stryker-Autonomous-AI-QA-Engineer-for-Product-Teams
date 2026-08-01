@@ -21,7 +21,7 @@ from app.db.models.project import Project
 from app.db.models.requirement import Requirement
 from app.db.models.report import Report
 from app.db.models.run import Evidence, Run, Step
-from app.db.session import AsyncSessionLocal
+from app.db.session import AsyncSessionLocal, dispose_stale_pool
 from app.domain.enums import KnowledgeIndexStatus, ReportFormat, RunStatus, StepStatus
 from app.evidence.storage import get_evidence_storage
 from app.execution.celery_app import celery_app
@@ -39,6 +39,7 @@ def run_requirement_task(run_id: str) -> None:
 
 
 async def _run_requirement_async(run_id: uuid.UUID) -> None:
+    await dispose_stale_pool()
     async with AsyncSessionLocal() as session:
         run = await session.get(Run, run_id)
         if run is None:
@@ -182,6 +183,7 @@ def ingest_knowledge_source_task(knowledge_source_id: str) -> None:
 
 
 async def _ingest_knowledge_source_async(knowledge_source_id: uuid.UUID) -> None:
+    await dispose_stale_pool()
     async with AsyncSessionLocal() as session:
         source = await session.get(KnowledgeSource, knowledge_source_id)
         if source is None:

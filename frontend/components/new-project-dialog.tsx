@@ -67,6 +67,10 @@ export function NewProjectDialog({
       toast.error("Name and base URL are required.");
       return;
     }
+    if (!/^https?:\/\/.+/i.test(baseUrl.trim())) {
+      toast.error("Base URL must start with http:// or https:// — e.g. https://staging.myapp.com");
+      return;
+    }
     try {
       const project = await createProject.mutateAsync({
         name: name.trim(),
@@ -147,6 +151,7 @@ export function NewProjectDialog({
             <Label htmlFor="project-base-url">Base URL</Label>
             <Input
               id="project-base-url"
+              type="url"
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
               placeholder="https://staging.myapp.com"

@@ -70,6 +70,10 @@ export default function ProjectSettingsPage() {
   }, [project]);
 
   async function handleSave() {
+    if (!/^https?:\/\/.+/i.test(baseUrl.trim())) {
+      toast.error("Base URL must start with http:// or https:// — e.g. https://staging.myapp.com");
+      return;
+    }
     try {
       await updateProject.mutateAsync({
         name: name.trim(),
@@ -155,7 +159,7 @@ export default function ProjectSettingsPage() {
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="settings-base-url">Base URL</Label>
-            <Input id="settings-base-url" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
+            <Input id="settings-base-url" type="url" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
           </div>
           <div className="grid gap-1.5">
             <Label>Tags</Label>

@@ -57,3 +57,19 @@ def test_failed_step_forces_failed_status():
     )
     _, status = _compute_confidence(state)
     assert status == "failed"
+
+
+def test_out_of_range_finding_confidence_is_clamped_not_propagated():
+    # Real failure observed against qwen2.5:3b: the ValidatorAgent returned a finding with
+    # confidence=2 (schema asks for 0-1, the model treated it as a 0/1/2 categorical scale
+    # instead), which without clamping inflated the final score to 23.8857 — "2389%" in the UI.
+    state = _state(
+        validation_findings=[
+            {"checked": "a", "outcome": "met", "evidence": "e", "confidence": 2},
+            {"checked": "b", "outcome": "met", "evidence": "e", "confidence": 50},
+        ],
+        step_results=[{"sequence": 1, "status": "passed"}],
+    )
+    score, status = _compute_confidence(state)
+    assert 0.0 <= score <= 1.0
+    assert status == "passed"

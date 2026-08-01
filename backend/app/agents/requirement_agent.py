@@ -20,7 +20,7 @@ SCHEMA = {
         "inferred_validations": {"type": "array", "items": {"type": "string"}},
         "identified_risks": {"type": "array", "items": {"type": "string"}},
         "predicted_edge_cases": {"type": "array", "items": {"type": "string"}},
-        "confidence": {"type": "number"},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
     },
     "required": [
         "understood_intent",
@@ -65,5 +65,8 @@ async def run_requirement_agent(state: RunState, llm: LLMProvider) -> RunState:
         "inferred_validations": parsed["inferred_validations"],
         "identified_risks": parsed["identified_risks"],
         "predicted_edge_cases": parsed["predicted_edge_cases"],
-        "requirement_confidence": float(parsed["confidence"]),
+        # Clamped defensively, not just via the schema's minimum/maximum — see the matching
+        # comment in comparator_agent.py's _compute_confidence for why the schema alone isn't
+        # enough with smaller local models.
+        "requirement_confidence": max(0.0, min(1.0, float(parsed["confidence"]))),
     }

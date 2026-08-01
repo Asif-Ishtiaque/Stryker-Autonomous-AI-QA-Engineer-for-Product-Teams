@@ -25,7 +25,7 @@ SCHEMA = {
                     "checked": {"type": "string"},
                     "outcome": {"type": "string", "enum": ["met", "not_met", "inconclusive"]},
                     "evidence": {"type": "string"},
-                    "confidence": {"type": "number"},
+                    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
                 },
                 "required": ["checked", "outcome", "evidence", "confidence"],
             },
