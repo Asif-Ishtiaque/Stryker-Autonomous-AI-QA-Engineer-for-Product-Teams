@@ -7,6 +7,8 @@ step-event callback used to stream live progress to the frontend.
 """
 from __future__ import annotations
 
+import uuid
+
 from app.agents.executors import get_executor_class
 from app.agents.state import RunState
 from app.core.logging import get_logger
@@ -17,7 +19,9 @@ logger = get_logger(__name__)
 
 async def run_executor_node(state: RunState, llm: LLMProvider, on_event) -> RunState:
     executor_cls = get_executor_class(state["platform"])
-    executor = executor_cls(state["base_url"], state.get("credential"), on_event, llm)
+    executor = executor_cls(
+        state["base_url"], state.get("credential"), on_event, llm, run_id=uuid.UUID(state["run_id"])
+    )
 
     step_results = []
     execution_error: str | None = None
@@ -52,6 +56,16 @@ async def run_executor_node(state: RunState, llm: LLMProvider, on_event) -> RunS
                     "sequence": step["sequence"],
                     "name": step["name"],
                     "message": result.get("error_message"),
+                    # Everything below is consumed by tasks.py's on_event to persist
+                    # this step's Step+Evidence rows immediately (see
+                    # _persist_step_result) rather than waiting for the whole run to
+                    # finish — that's what makes the Mission Control evidence/console/
+                    # network panels genuinely live instead of only populated at the end.
+                    "action_type": step.get("action_type"),
+                    "parameters": step.get("parameters"),
+                    "result": result.get("result"),
+                    "error_message": result.get("error_message"),
+                    "evidence_refs": result.get("evidence_refs"),
                 }
             )
             if result["status"] == "failed" and step.get("action_type") in ("login", "navigate"):

@@ -10,6 +10,7 @@ seam the PRD requires for "future plugins."
 """
 from __future__ import annotations
 
+import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -38,11 +39,16 @@ class Executor(ABC):
         credential: dict[str, Any] | None,
         on_event: StepEventSink,
         llm: LLMProvider,
+        run_id: uuid.UUID | None = None,
     ) -> None:
         self.base_url = base_url
         self.credential = credential
         self.on_event = on_event
         self.llm = llm
+        # Optional: only the web executor uses this today, to key its CDP
+        # screencast's Redis channel (see app.agents.executors.web.screencast).
+        # Other platforms can ignore it.
+        self.run_id = run_id
 
     @abstractmethod
     async def setup(self) -> None:

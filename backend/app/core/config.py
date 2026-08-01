@@ -100,6 +100,25 @@ class Settings(BaseSettings):
     # SIGKILL. Tune this down for fast providers, up further for very slow local hardware.
     run_task_time_limit_seconds: int = 1800
 
+    # --- Live browser streaming (Mission Control WebRTC) ---
+    # CDP Page.startScreencast() quality/size knobs — traded off against Redis pub/sub
+    # bandwidth and worker CPU (JPEG encoding happens inside the browser process itself).
+    screencast_quality: int = 70
+    screencast_max_width: int = 1280
+    screencast_max_height: int = 800
+    screencast_every_nth_frame: int = 1
+    # TURN relay (see the coturn service in docker-compose.yml) — required for the backend's
+    # RTCPeerConnection to have a candidate the browser can actually reach, since its host
+    # candidate is an internal Docker bridge address. See the comment on that service for why.
+    # turn_host is where THIS process reaches coturn to allocate a relay (the Docker service
+    # name, like minio_endpoint) — separate from coturn's --external-ip, which is the address
+    # actually embedded in the relay candidate and must be browser-reachable (127.0.0.1 here,
+    # since this whole stack and the browser share one machine in this deployment).
+    turn_host: str = "coturn"
+    turn_port: int = 3478
+    turn_username: str = "stryker"
+    turn_credential: str = "stryker-turn-secret"
+
 
 @lru_cache
 def get_settings() -> Settings:

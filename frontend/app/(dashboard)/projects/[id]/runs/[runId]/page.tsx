@@ -13,9 +13,20 @@ import { StatusBadge } from "@/components/status-badge";
 import { ConfidenceGauge } from "@/components/confidence-gauge";
 import { StepTimeline } from "@/components/step-timeline";
 import { ReportMenu } from "@/components/report-menu";
+import { LiveBrowserStream } from "@/components/live-browser-stream";
+import { ReasoningPanel, LiveConsolePanel, LiveNetworkPanel } from "@/components/mission-control-panels";
 import { useCancelRun, useRun, qk } from "@/lib/queries";
 import { useRunEvents } from "@/lib/ws";
-import { deriveLiveSteps, isRunTerminal, latestConfidenceScore, latestPhaseMessage, latestRunStatus } from "@/lib/run-events";
+import {
+  deriveConsoleLog,
+  deriveLiveSteps,
+  deriveNetworkLog,
+  deriveReasoningLog,
+  isRunTerminal,
+  latestConfidenceScore,
+  latestPhaseMessage,
+  latestRunStatus,
+} from "@/lib/run-events";
 import { RunStatus } from "@/lib/types";
 import { ApiError } from "@/lib/api-client";
 import { formatDate, formatDuration } from "@/lib/utils";
@@ -53,8 +64,12 @@ export default function RunPage() {
   const displayStatus = run ? latestRunStatus(events, run.status) : RunStatus.QUEUED;
   const phaseMessage = latestPhaseMessage(events);
   const displayConfidence = latestConfidenceScore(events, run?.confidence_score);
+  const reasoningLog = useMemo(() => deriveReasoningLog(events), [events]);
+  const consoleLog = useMemo(() => deriveConsoleLog(events), [events]);
+  const networkLog = useMemo(() => deriveNetworkLog(events), [events]);
 
   const usingFinalSteps = knownTerminal && (run?.steps.length ?? 0) > 0;
+  const isLive = shouldConnect;
 
   async function handleCancel() {
     try {
@@ -130,6 +145,13 @@ export default function RunPage() {
         </CardContent>
       </Card>
 
+      {isLive && (
+        <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
+          <LiveBrowserStream runId={runId} enabled={isLive} />
+          <ReasoningPanel entries={reasoningLog} />
+        </div>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-sm font-medium text-muted-foreground">Execution timeline</CardTitle>
@@ -142,6 +164,13 @@ export default function RunPage() {
           )}
         </CardContent>
       </Card>
+
+      {isLive && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <LiveNetworkPanel entries={networkLog} />
+          <LiveConsolePanel entries={consoleLog} />
+        </div>
+      )}
 
       {run.validation_checklist && Object.keys(run.validation_checklist).length > 0 && (
         <Card>

@@ -5,6 +5,7 @@ outcome (evidence-on-failure only would hide near-misses).
 """
 from __future__ import annotations
 
+import asyncio
 import time
 from typing import Any
 from urllib.parse import urljoin
@@ -13,6 +14,7 @@ from playwright.async_api import Page
 
 from app.agents.executors.base import Executor, StepEventSink
 from app.agents.executors.web.locator_engine import SelfHealingLocator, Target
+from app.agents.executors.web.screencast import start_screencast
 from app.agents.state import ExecutedStepResult, PlannedStep
 from app.core.logging import get_logger
 from app.evidence.capture import (
@@ -38,6 +40,7 @@ class WebExecutor(Executor):
         self._page: Page | None = None
         self._console_buffer: list[dict[str, Any]] = []
         self._network_buffer: list[dict[str, Any]] = []
+        self._stop_screencast: Any = None
 
     async def setup(self) -> None:
         pool = get_browser_pool()
@@ -49,11 +52,8 @@ class WebExecutor(Executor):
         )
         self._context = await self._context_cm.__aenter__()
         self._page = await self._context.new_page()
-        self._page.on("console", lambda msg: self._console_buffer.append({"type": msg.type, "text": msg.text}))
-        self._page.on(
-            "requestfinished",
-            lambda req: self._network_buffer.append({"url": req.url, "method": req.method}),
-        )
+        self._page.on("console", self._on_console)
+        self._page.on("requestfinished", self._on_request_finished)
         if self.credential and self.credential.get("cookies"):
             # Stored as a simple {name: value} map (see CredentialCreate.cookies);
             # Playwright needs the richer {name, value, url} shape to know which
@@ -64,8 +64,27 @@ class WebExecutor(Executor):
             ]
             await self._context.add_cookies(cookie_list)
 
+        if self.run_id is not None:
+            try:
+                self._stop_screencast = await start_screencast(self._page, self.run_id)
+            except Exception as exc:  # noqa: BLE001 — Mission Control's live video is a bonus,
+                # never a reason to fail the run itself.
+                logger.warning("web_executor.screencast_start_failed", error=str(exc))
+
+    def _on_console(self, msg: Any) -> None:
+        entry = {"type": msg.type, "text": msg.text}
+        self._console_buffer.append(entry)
+        asyncio.ensure_future(self.on_event({"run_status": "running", "console": entry}))
+
+    def _on_request_finished(self, req: Any) -> None:
+        entry = {"url": req.url, "method": req.method}
+        self._network_buffer.append(entry)
+        asyncio.ensure_future(self.on_event({"run_status": "running", "network": entry}))
+
     async def teardown(self) -> None:
         try:
+            if self._stop_screencast:
+                await self._stop_screencast()
             if self._page:
                 await self._page.close()
         finally:
@@ -76,6 +95,10 @@ class WebExecutor(Executor):
         assert self._page is not None, "setup() must be called before execute_step()"
         started = time.monotonic()
         evidence_refs: list[dict[str, Any]] = []
+        target_desc = step.get("parameters", {}).get("description") or step["name"]
+        await self.on_event(
+            {"run_status": "running", "sequence": step["sequence"], "reasoning": f"{step['action_type']} — {target_desc}"}
+        )
         try:
             result = await self._dispatch(step)
             status = "passed"
@@ -85,6 +108,15 @@ class WebExecutor(Executor):
             error_message = str(exc)
             result = {}
             logger.warning("web_executor.step_failed", step=step["name"], error=str(exc))
+
+        await self.on_event(
+            {
+                "run_status": "running",
+                "sequence": step["sequence"],
+                "reasoning": f"{'done' if status == 'passed' else 'failed'}: {step['name']}"
+                + (f" — {error_message}" if error_message else ""),
+            }
+        )
 
         evidence_refs.append(await capture_screenshot(self._page, f"runs/{step['sequence']}"))
         evidence_refs.append(await capture_dom_snapshot(self._page, f"runs/{step['sequence']}"))

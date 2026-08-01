@@ -323,6 +323,11 @@ export interface RunStepEvent {
   name?: string | null;
   message?: string | null;
   confidence_score?: number | null;
+  /** Mission Control additions — see backend/app/execution/tasks.py on_event. */
+  reasoning?: string | null;
+  console?: { type: string; text: string } | null;
+  network?: { url: string; method: string } | null;
+  evidence?: { id: string; evidence_type: EvidenceType }[] | null;
 }
 
 // ---------------------------------------------------------------------------

@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import app.rag.parsers  # noqa: F401 — populates the parser registry
 from app.agents.executors import get_executor_class  # noqa: F401 — populates the executor registry
-from app.api.routers import auth, chat, credentials, health, knowledge, projects, reports, requirements, runs, ws
+from app.api.routers import auth, chat, credentials, health, knowledge, projects, reports, requirements, runs, stream, ws
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 from app.core.telemetry import configure_telemetry
@@ -57,6 +57,7 @@ def create_app() -> FastAPI:
     app.include_router(reports.router, prefix=prefix)
     app.include_router(chat.router, prefix=prefix)
     app.include_router(ws.router, prefix=prefix)
+    app.include_router(stream.router, prefix=prefix)
 
     return app
 

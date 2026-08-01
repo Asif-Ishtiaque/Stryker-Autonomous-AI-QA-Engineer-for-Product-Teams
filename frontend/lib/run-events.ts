@@ -6,6 +6,8 @@ export interface LiveStepView {
   name: string;
   status: StepStatus | string;
   message?: string | null;
+  stepId?: string | null;
+  evidence?: { id: string; evidence_type: string }[];
 }
 
 /**
@@ -26,9 +28,50 @@ export function deriveLiveSteps(events: RunStepEvent[]): LiveStepView[] {
       name: event.name,
       status: event.step_status ?? "waiting",
       message: event.message,
+      stepId: event.step_id,
+      evidence: event.evidence ?? undefined,
     });
   }
   return Array.from(bySequence.values()).sort((a, b) => a.sequence - b.sequence);
+}
+
+export interface ReasoningEntry {
+  key: string;
+  sequence: number | null;
+  text: string;
+}
+
+/** AI Reasoning panel feed — every `reasoning` narration emitted by the executor as it works. */
+export function deriveReasoningLog(events: RunStepEvent[]): ReasoningEntry[] {
+  return events
+    .filter((e) => e.reasoning)
+    .map((e, idx) => ({ key: `reason-${idx}`, sequence: e.sequence ?? null, text: e.reasoning as string }));
+}
+
+export interface ConsoleEntry {
+  key: string;
+  type: string;
+  text: string;
+}
+
+/** Live Console panel feed — every browser console message as it's emitted, not just the last 50 at step-end. */
+export function deriveConsoleLog(events: RunStepEvent[]): ConsoleEntry[] {
+  return events
+    .filter((e) => e.console)
+    .map((e, idx) => ({ key: `console-${idx}`, type: e.console!.type, text: e.console!.text }));
+}
+
+export interface NetworkEntry {
+  key: string;
+  url: string;
+  method: string;
+}
+
+/** Live Network panel feed — every finished request as it happens, not just the last 50 at step-end. */
+export function deriveNetworkLog(events: RunStepEvent[]): NetworkEntry[] {
+  return events
+    .filter((e) => e.network)
+    .map((e, idx) => ({ key: `network-${idx}`, url: e.network!.url, method: e.network!.method }));
 }
 
 /** The latest run-level status seen over the socket, falling back to the last known REST value. */

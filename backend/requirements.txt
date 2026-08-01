@@ -43,6 +43,14 @@ passlib[bcrypt]>=1.7.4
 # registration/login) on import. Pin below the breaking change until passlib ships a fix.
 bcrypt<4.1
 cryptography>=43.0
+numpy>=1.26
+aiortc>=1.9,<1.10
+# Pulls in PyAV (av) for JPEG->VideoFrame decode and pylibsrtp/cffi for SRTP — all ship
+# prebuilt manylinux wheels for this image's platform, no extra apt packages needed. Powers
+# Mission Control's live WebRTC browser-streaming panel (app/streaming/tracks.py): frames
+# come from Playwright's CDP Page.startScreencast (app/agents/executors/web/screencast.py),
+# relayed via Redis pub/sub since the Celery worker (which owns the Page) and the FastAPI
+# process (which negotiates the peer connection) are different containers.
 structlog>=24.4
 opentelemetry-sdk>=1.29
 opentelemetry-instrumentation-fastapi>=0.50b0

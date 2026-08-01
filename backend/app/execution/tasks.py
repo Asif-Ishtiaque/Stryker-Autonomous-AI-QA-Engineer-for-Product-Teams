@@ -71,7 +71,19 @@ async def _run_requirement_async(run_id: uuid.UUID) -> None:
         publish_sync(run_id, {"run_id": str(run_id), "run_status": "planning", "message": "Starting run"})
 
         async def on_event(event: dict) -> None:
-            publish_sync(run_id, {"run_id": str(run_id), **event})
+            enriched = dict(event)
+            if event.get("step_status") in ("passed", "failed") and event.get("sequence") is not None:
+                step_id, evidence_summaries = await _persist_step_result(session, run, event)
+                enriched["step_id"] = str(step_id)
+                enriched["evidence"] = evidence_summaries
+                # The raw payload is only needed to persist the row above — once it's in
+                # the database the frontend fetches it the normal way (REST + presigned
+                # URLs, keyed by the evidence ids just attached), so drop the heavy fields
+                # rather than pushing full screenshots/DOM/HTML over the WS channel too.
+                enriched.pop("evidence_refs", None)
+                enriched.pop("result", None)
+                enriched.pop("parameters", None)
+            publish_sync(run_id, {"run_id": str(run_id), **enriched})
 
         # Everything from here through graph execution is wrapped in one broad try/except.
         # A run must NEVER be left stuck at an intermediate status (e.g. "planning") because
@@ -116,6 +128,46 @@ async def _run_requirement_async(run_id: uuid.UUID) -> None:
         )
 
 
+async def _persist_step_result(session, run: Run, event: dict) -> tuple[uuid.UUID, list[dict]]:
+    """Writes one step's Step+Evidence rows the moment it completes, instead of
+    waiting for the whole run to finish (see _persist_final_state, which used
+    to do this in bulk at the end). This is what lets Mission Control's live
+    Evidence/Console/Network panels show real data *during* execution — the
+    frontend fetches evidence via the normal REST/presigned-URL path using the
+    ids this returns, exactly as it does for a finished run.
+    """
+    step = Step(
+        run_id=run.id,
+        sequence=event["sequence"],
+        name=event.get("name") or f"Step {event['sequence']}",
+        action_type=event.get("action_type") or "unknown",
+        parameters=event.get("parameters") or {},
+        status=StepStatus.PASSED if event["step_status"] == "passed" else StepStatus.FAILED,
+        result=event.get("result") or {},
+        error_message=event.get("error_message"),
+        started_at=run.started_at,
+        finished_at=dt.datetime.now(dt.timezone.utc),
+    )
+    session.add(step)
+    await session.flush()
+
+    evidence_summaries: list[dict] = []
+    for ref in event.get("evidence_refs") or []:
+        evidence = Evidence(
+            step_id=step.id,
+            evidence_type=ref["evidence_type"],
+            storage_key=ref.get("storage_key"),
+            inline_data=ref.get("inline_data"),
+            content_type=ref.get("content_type"),
+        )
+        session.add(evidence)
+        await session.flush()
+        evidence_summaries.append({"id": str(evidence.id), "evidence_type": evidence.evidence_type})
+
+    await session.commit()
+    return step.id, evidence_summaries
+
+
 async def _persist_final_state(session, run: Run, state: dict) -> None:
     status_map = {"passed": RunStatus.PASSED, "failed": RunStatus.FAILED, "errored": RunStatus.ERRORED}
     run.status = status_map.get(state.get("final_status", "errored"), RunStatus.ERRORED)
@@ -130,36 +182,9 @@ async def _persist_final_state(session, run: Run, state: dict) -> None:
     if run.started_at:
         run.duration_ms = int((run.finished_at - run.started_at).total_seconds() * 1000)
 
+    # Step/Evidence rows for this run were already written incrementally as each
+    # step completed — see _persist_step_result, invoked from on_event above.
     storage = get_evidence_storage()
-    plan_by_sequence = {s["sequence"]: s for s in state.get("plan", [])}
-
-    for result in state.get("step_results", []):
-        planned = plan_by_sequence.get(result["sequence"], {})
-        step = Step(
-            run_id=run.id,
-            sequence=result["sequence"],
-            name=planned.get("name", f"Step {result['sequence']}"),
-            action_type=planned.get("action_type", "unknown"),
-            parameters=planned.get("parameters", {}),
-            status=StepStatus.PASSED if result["status"] == "passed" else StepStatus.FAILED,
-            result=result.get("result", {}),
-            error_message=result.get("error_message"),
-            started_at=run.started_at,
-            finished_at=run.finished_at,
-        )
-        session.add(step)
-        await session.flush()
-
-        for ref in result.get("evidence_refs", []):
-            session.add(
-                Evidence(
-                    step_id=step.id,
-                    evidence_type=ref["evidence_type"],
-                    storage_key=ref.get("storage_key"),
-                    inline_data=ref.get("inline_data"),
-                    content_type=ref.get("content_type"),
-                )
-            )
 
     if state.get("report_markdown"):
         markdown_key = storage.put_bytes(

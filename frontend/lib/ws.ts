@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { TERMINAL_RUN_STATUSES, type RunStepEvent } from "./types";
 
-const WS_BASE = (process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8000").replace(/\/+$/, "");
+export const WS_BASE = (process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8000").replace(/\/+$/, "");
 
 export type SocketState = "connecting" | "open" | "closed" | "error";
 
