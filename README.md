@@ -1,6 +1,6 @@
-# Stryker
+# Stryker — The Autonomous AI QA Engineer
 
-**Stryker — The Autonomous AI QA Engineer.**
+
 
 Stryker takes a plain-English requirement ("Verify Admin can create an invoice and the customer balance updates") and turns it into a full test run: an AI-generated plan, a real browser execution against your app, a business-outcome validation, evidence capture, and a report — with no test script written by a human.
 
