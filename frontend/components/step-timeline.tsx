@@ -114,9 +114,20 @@ function TimelineRow({
       <div
         className={cn(
           "flex items-center justify-between gap-3 rounded-lg py-1.5",
-          hasEvidence && "cursor-pointer hover:bg-secondary/40 px-2 -mx-2",
+          hasEvidence &&
+            "cursor-pointer hover:bg-secondary/40 px-2 -mx-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         )}
         onClick={() => hasEvidence && setExpanded((e) => !e)}
+        role={hasEvidence ? "button" : undefined}
+        tabIndex={hasEvidence ? 0 : undefined}
+        aria-expanded={hasEvidence ? expanded : undefined}
+        onKeyDown={(e) => {
+          if (!hasEvidence) return;
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setExpanded((prev) => !prev);
+          }
+        }}
       >
         <div>
           <p className="text-sm font-medium leading-tight">

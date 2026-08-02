@@ -5,6 +5,7 @@ import { FolderKanban, Plus } from "lucide-react";
 import { Topbar } from "@/components/topbar";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
+import { ErrorState } from "@/components/error-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProjectCard } from "@/components/project-card";
@@ -12,7 +13,7 @@ import { NewProjectDialog } from "@/components/new-project-dialog";
 import { useProjects } from "@/lib/queries";
 
 export default function ProjectsPage() {
-  const { data: projects, isLoading } = useProjects();
+  const { data: projects, isLoading, isError, refetch } = useProjects();
   const [newProjectOpen, setNewProjectOpen] = useState(false);
 
   return (
@@ -36,6 +37,8 @@ export default function ProjectsPage() {
               <Skeleton key={i} className="h-44 rounded-xl" />
             ))}
           </div>
+        ) : isError ? (
+          <ErrorState description="Couldn't load your projects." onRetry={() => refetch()} />
         ) : !projects || projects.length === 0 ? (
           <EmptyState
             icon={FolderKanban}

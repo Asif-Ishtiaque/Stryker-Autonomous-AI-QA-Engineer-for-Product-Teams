@@ -7,7 +7,11 @@ services:
       POSTGRES_USER: stryker
       POSTGRES_PASSWORD: stryker
       POSTGRES_DB: stryker
-    ports: ["5432:5432"]
+    # Bound to loopback only: this has no auth beyond the default stryker/stryker
+    # credentials baked into this file, and containers reach it via the internal
+    # Docker network (service name "postgres") regardless of this host port mapping —
+    # 127.0.0.1 still covers local `psql`/GUI-client debugging from this same machine.
+    ports: ["127.0.0.1:5432:5432"]
     volumes: ["postgres-data:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U stryker"]
@@ -17,7 +21,11 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports: ["6379:6379"]
+    # Bound to loopback only: no requirepass/ACL is configured, and anyone who can
+    # reach this port can publish raw Celery task messages directly (bypassing the
+    # API's auth entirely — see app.execution.tasks) or read the pub/sub run-event
+    # stream. Containers reach it via the internal network regardless of this mapping.
+    ports: ["127.0.0.1:6379:6379"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -26,7 +34,7 @@ services:
 
   chroma:
     image: chromadb/chroma:0.5.20
-    ports: ["8001:8000"]
+    ports: ["127.0.0.1:8001:8000"]
     volumes: ["chroma-data:/chroma/chroma"]
 
   minio:
@@ -35,7 +43,11 @@ services:
     environment:
       MINIO_ROOT_USER: stryker
       MINIO_ROOT_PASSWORD: stryker-secret
-    ports: ["9000:9000", "9001:9001"]
+    # Loopback only. Presigned evidence URLs are already signed for "localhost:9000"
+    # (see minio_public_endpoint in app/core/config.py) — a browser on this same
+    # machine resolves that to 127.0.0.1 and is unaffected; a browser on a different
+    # machine couldn't have used those URLs anyway, so this changes nothing there.
+    ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
     volumes: ["minio-data:/data"]
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
@@ -49,7 +61,8 @@ services:
       discovery.type: single-node
       DISABLE_SECURITY_PLUGIN: "true"
       OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
-    ports: ["9200:9200"]
+    # Loopback only — DISABLE_SECURITY_PLUGIN above means this has zero auth.
+    ports: ["127.0.0.1:9200:9200"]
     volumes: ["opensearch-data:/usr/share/opensearch/data"]
 
   ollama:
@@ -94,31 +107,37 @@ services:
       --external-ip=127.0.0.1
       --min-port=49160 --max-port=49200
       --no-cli --no-tls --no-dtls
+    # Loopback only — consistent with external-ip=127.0.0.1 above: this TURN server was
+    # never reachable from another machine anyway, and its default credentials shouldn't
+    # be reachable beyond this host regardless.
     ports:
-      - "3478:3478/udp"
-      - "3478:3478/tcp"
-      - "49160-49200:49160-49200/udp"
+      - "127.0.0.1:3478:3478/udp"
+      - "127.0.0.1:3478:3478/tcp"
+      - "127.0.0.1:49160-49200:49160-49200/udp"
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.114.0
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes: ["./infra/otel/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro"]
-    ports: ["4317:4317"]
+    ports: ["127.0.0.1:4317:4317"]
 
   prometheus:
     image: prom/prometheus:v3.0.1
     volumes: ["./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
-    ports: ["9090:9090"]
+    ports: ["127.0.0.1:9090:9090"]
 
   grafana:
     image: grafana/grafana:11.4.0
     environment:
       GF_SECURITY_ADMIN_PASSWORD: stryker
+      # Anonymous viewer access is scoped by the loopback-only port binding below, not by
+      # this setting alone — broaden this port to 0.0.0.0 only after also disabling
+      # anonymous access or changing the default admin password.
       GF_AUTH_ANONYMOUS_ENABLED: "true"
     volumes:
       - "./infra/grafana/provisioning:/etc/grafana/provisioning:ro"
       - "grafana-data:/var/lib/grafana"
-    ports: ["3001:3000"]
+    ports: ["127.0.0.1:3001:3000"]
 
   backend:
     build:

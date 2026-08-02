@@ -18,6 +18,13 @@ from app.schemas.knowledge import KnowledgeSourceOut, SemanticSearchRequest, Sem
 
 router = APIRouter(prefix="/projects/{project_id}/knowledge", tags=["knowledge"])
 
+# No limit existed before this: `await file.read()` pulled the entire upload into memory
+# unconditionally, so a large-enough file (or several concurrent ones) could OOM the API
+# process. Reading in bounded chunks means a too-large upload is rejected well before that
+# much memory is ever held, rather than after the fact.
+_MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+_UPLOAD_CHUNK_BYTES = 1024 * 1024
+
 _EXTENSION_MAP = {
     ".md": KnowledgeSourceType.MARKDOWN,
     ".markdown": KnowledgeSourceType.MARKDOWN,
@@ -51,6 +58,23 @@ def _infer_source_type(filename: str) -> KnowledgeSourceType:
     raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unsupported file type: {filename}")
 
 
+async def _read_bounded(file: UploadFile, max_bytes: int) -> bytes:
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await file.read(_UPLOAD_CHUNK_BYTES)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_bytes:
+            raise HTTPException(
+                status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                f"File exceeds the {max_bytes // (1024 * 1024)}MB upload limit",
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 @router.post("/upload", response_model=KnowledgeSourceOut, status_code=status.HTTP_201_CREATED)
 async def upload_knowledge_source(
     project_id: uuid.UUID,
@@ -59,7 +83,7 @@ async def upload_knowledge_source(
     user: User = Depends(get_current_user),
 ) -> KnowledgeSource:
     source_type = _infer_source_type(file.filename or "")
-    raw = await file.read()
+    raw = await _read_bounded(file, _MAX_UPLOAD_BYTES)
 
     storage_key = get_evidence_storage().put_bytes(
         f"knowledge/{project_id}", raw, file.content_type or "application/octet-stream"

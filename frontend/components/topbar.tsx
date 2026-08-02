@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { MobileNav } from "@/components/mobile-nav";
 import { useAuth } from "@/lib/auth";
 import { initials } from "@/lib/utils";
 
@@ -18,7 +19,10 @@ export function Topbar({ children }: { children?: React.ReactNode }) {
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b border-border px-4 md:px-6">
-      <div className="flex-1">{children}</div>
+      <div className="flex flex-1 items-center gap-2">
+        <MobileNav />
+        <div className="flex-1">{children}</div>
+      </div>
 
       {user && (
         <DropdownMenu>

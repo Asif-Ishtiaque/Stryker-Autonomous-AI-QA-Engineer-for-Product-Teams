@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 from app.domain.enums import UserRole
 
@@ -10,7 +10,7 @@ from app.domain.enums import UserRole
 class RegisterRequest(BaseModel):
     email: EmailStr
     name: str
-    password: str
+    password: str = Field(min_length=8)
 
 
 class LoginRequest(BaseModel):

@@ -15,6 +15,7 @@ import { StepTimeline } from "@/components/step-timeline";
 import { ReportMenu } from "@/components/report-menu";
 import { LiveBrowserStream } from "@/components/live-browser-stream";
 import { ReasoningPanel, LiveConsolePanel, LiveNetworkPanel } from "@/components/mission-control-panels";
+import { ErrorState } from "@/components/error-state";
 import { useCancelRun, useRun, qk } from "@/lib/queries";
 import { useRunEvents } from "@/lib/ws";
 import {
@@ -45,7 +46,7 @@ export default function RunPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const { data: run, isLoading } = useRun(projectId, runId);
+  const { data: run, isLoading, isError, refetch } = useRun(projectId, runId);
   const cancelRun = useCancelRun(projectId);
 
   const knownTerminal = run ? isRunTerminal(run.status) : false;
@@ -78,6 +79,14 @@ export default function RunPage() {
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Failed to cancel run.");
     }
+  }
+
+  if (isError) {
+    return (
+      <div className="mx-auto w-full max-w-4xl p-6">
+        <ErrorState title="Couldn't load this run" onRetry={() => refetch()} />
+      </div>
+    );
   }
 
   if (isLoading || !run) {

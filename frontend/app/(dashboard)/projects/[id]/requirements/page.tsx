@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { ListPlus, Plus } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
+import { ErrorState } from "@/components/error-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RequirementCard } from "@/components/requirement-card";
@@ -14,7 +15,7 @@ import { useRequirements } from "@/lib/queries";
 export default function RequirementsPage() {
   const params = useParams<{ id: string }>();
   const projectId = params.id;
-  const { data: requirements, isLoading } = useRequirements(projectId);
+  const { data: requirements, isLoading, isError, refetch } = useRequirements(projectId);
   const [open, setOpen] = useState(false);
 
   return (
@@ -36,6 +37,8 @@ export default function RequirementsPage() {
             <Skeleton key={i} className="h-20 rounded-xl" />
           ))}
         </div>
+      ) : isError ? (
+        <ErrorState description="Couldn't load requirements." onRetry={() => refetch()} />
       ) : !requirements || requirements.length === 0 ? (
         <EmptyState
           icon={ListPlus}

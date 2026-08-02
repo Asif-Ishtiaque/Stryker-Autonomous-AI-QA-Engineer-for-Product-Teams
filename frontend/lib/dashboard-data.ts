@@ -24,6 +24,8 @@ export interface HeatmapDay {
 
 export interface DashboardData {
   isLoading: boolean;
+  isError: boolean;
+  refetch: () => void;
   projects: ProjectOut[];
   totalProjects: number;
   recentRuns: DashboardRun[];
@@ -128,6 +130,11 @@ export function useDashboardData(): DashboardData {
 
   return {
     isLoading,
+    // Per-project runs/requirements queries failing individually just under-counts
+    // stats for that project (acceptable degradation) — only the root projects query
+    // failing is worth blocking the whole page for, since nothing else can render without it.
+    isError: projectsQuery.isError,
+    refetch: () => projectsQuery.refetch(),
     projects,
     totalProjects: projects.length,
     recentRuns,

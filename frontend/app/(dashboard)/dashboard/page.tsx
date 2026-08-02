@@ -7,6 +7,7 @@ import { AlertTriangle, CheckCircle2, Clock, FolderKanban, Plus } from "lucide-r
 import { Topbar } from "@/components/topbar";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
+import { ErrorState } from "@/components/error-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -37,7 +38,9 @@ export default function DashboardPage() {
           }
         />
 
-        {data.isLoading ? (
+        {data.isError ? (
+          <ErrorState description="Couldn't load your dashboard." onRetry={data.refetch} />
+        ) : data.isLoading ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <Skeleton key={i} className="h-28 rounded-xl" />

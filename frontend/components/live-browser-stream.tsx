@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Camera, Loader2, VideoOff } from "lucide-react";
+import { getAccessToken } from "@/lib/api-client";
 import { WS_BASE } from "@/lib/ws";
 import { cn } from "@/lib/utils";
 
@@ -51,6 +52,11 @@ export function LiveBrowserStream({ runId, enabled }: { runId: string; enabled: 
 
   useEffect(() => {
     if (!enabled) return;
+    const token = getAccessToken();
+    if (!token) {
+      setState("error");
+      return;
+    }
 
     let cancelled = false;
     setState("connecting");
@@ -82,7 +88,7 @@ export function LiveBrowserStream({ runId, enabled }: { runId: string; enabled: 
       if (pc.connectionState === "closed") setState("ended");
     };
 
-    const socket = new WebSocket(`${WS_BASE}/api/v1/ws/runs/${runId}/stream`);
+    const socket = new WebSocket(`${WS_BASE}/api/v1/ws/runs/${runId}/stream?token=${encodeURIComponent(token)}`);
 
     socket.onopen = async () => {
       try {

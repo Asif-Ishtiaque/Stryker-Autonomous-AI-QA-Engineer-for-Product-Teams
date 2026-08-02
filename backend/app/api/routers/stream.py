@@ -13,17 +13,22 @@ setLocalDescription() resolves, so the full answer SDP (candidates included)
 can go back over this same WebSocket in one message — no separate ICE
 candidate exchange needed for the local/LAN deployments this targets.
 
-NOTE (known limitation, phase 1, matches app/api/routers/ws.py): this endpoint
-does not authenticate the connection — see the equivalent note there.
+Requires `?token=` (see app.api.routers.ws_auth) — same auth/ownership check
+as app/api/routers/ws.py, for the same reason: this streams live video of
+whatever the run's browser is doing, including an authenticated AUT session
+if the requirement logged in with stored credentials.
 """
 from __future__ import annotations
 
 import uuid
 
 from aiortc import RTCConfiguration, RTCIceServer, RTCPeerConnection, RTCSessionDescription
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.routers.ws_auth import authorize_run_websocket
 from app.core.config import get_settings
+from app.core.di import get_db
 from app.core.logging import get_logger
 from app.streaming.tracks import RedisFrameTrack
 
@@ -44,7 +49,9 @@ def _rtc_configuration() -> RTCConfiguration:
 
 
 @router.websocket("/ws/runs/{run_id}/stream")
-async def stream_signaling(websocket: WebSocket, run_id: uuid.UUID) -> None:
+async def stream_signaling(websocket: WebSocket, run_id: uuid.UUID, session: AsyncSession = Depends(get_db)) -> None:
+    if await authorize_run_websocket(websocket, run_id, session) is None:
+        return
     await websocket.accept()
     pc = RTCPeerConnection(configuration=_rtc_configuration())
     track = RedisFrameTrack(run_id)

@@ -4,12 +4,16 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 import app.rag.parsers  # noqa: F401 — populates the parser registry
 from app.agents.executors import get_executor_class  # noqa: F401 — populates the executor registry
 from app.api.routers import auth, chat, credentials, health, knowledge, projects, reports, requirements, runs, stream, ws
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
+from app.core.rate_limit import limiter
 from app.core.telemetry import configure_telemetry
 from app.execution.browser_pool import get_browser_pool
 
@@ -35,6 +39,10 @@ def create_app() -> FastAPI:
         version="0.1.0",
         lifespan=lifespan,
     )
+
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_middleware(SlowAPIMiddleware)
 
     app.add_middleware(
         CORSMiddleware,

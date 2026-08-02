@@ -4,6 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { PlayCircle } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
+import { ErrorState } from "@/components/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
@@ -29,7 +30,7 @@ export default function RunsPage() {
   const params = useParams<{ id: string }>();
   const projectId = params.id;
   const router = useRouter();
-  const { data: runs, isLoading } = useRuns(projectId);
+  const { data: runs, isLoading, isError, refetch } = useRuns(projectId);
 
   const sorted = [...(runs ?? [])].sort(
     (a, b) => new Date(b.started_at ?? b.finished_at ?? 0).getTime() - new Date(a.started_at ?? a.finished_at ?? 0).getTime(),
@@ -45,6 +46,8 @@ export default function RunsPage() {
             <Skeleton key={i} className="h-10 rounded-lg" />
           ))}
         </div>
+      ) : isError ? (
+        <ErrorState description="Couldn't load runs." onRetry={() => refetch()} />
       ) : sorted.length === 0 ? (
         <EmptyState icon={PlayCircle} title="No runs yet" description="Start one from the Requirements tab." />
       ) : (

@@ -5,6 +5,7 @@ import { Loader2, MessageCircle } from "lucide-react";
 import { Topbar } from "@/components/topbar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ErrorState } from "@/components/error-state";
 import { ProjectTabs } from "@/components/project-tabs";
 import { PlatformIcon, PLATFORM_LABELS } from "@/components/platform-icon";
 import { useProject } from "@/lib/queries";
@@ -13,8 +14,23 @@ import { useChat } from "@/components/chat/chat-provider";
 export default function ProjectLayout({ children }: { children: React.ReactNode }) {
   const params = useParams<{ id: string }>();
   const projectId = params.id;
-  const { data: project, isLoading } = useProject(projectId);
+  const { data: project, isLoading, isError, refetch } = useProject(projectId);
   const chat = useChat();
+
+  if (isError) {
+    return (
+      <>
+        <Topbar />
+        <div className="mx-auto w-full max-w-6xl flex-1 p-6">
+          <ErrorState
+            title="Couldn't load this project"
+            description="It may have been deleted, or something went wrong fetching it."
+            onRetry={() => refetch()}
+          />
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
