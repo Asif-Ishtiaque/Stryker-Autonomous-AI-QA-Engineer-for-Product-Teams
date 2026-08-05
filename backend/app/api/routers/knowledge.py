@@ -6,9 +6,9 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.di import get_current_user, get_db
+from app.core.di import get_db, get_owned_project
 from app.db.models.knowledge import KnowledgeSource
-from app.db.models.user import User
+from app.db.models.project import Project
 from app.domain.enums import KnowledgeSourceType
 from app.evidence.storage import get_evidence_storage
 from app.execution.tasks import ingest_knowledge_source_task
@@ -77,24 +77,23 @@ async def _read_bounded(file: UploadFile, max_bytes: int) -> bytes:
 
 @router.post("/upload", response_model=KnowledgeSourceOut, status_code=status.HTTP_201_CREATED)
 async def upload_knowledge_source(
-    project_id: uuid.UUID,
     file: UploadFile = File(...),
+    project: Project = Depends(get_owned_project),
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
 ) -> KnowledgeSource:
     source_type = _infer_source_type(file.filename or "")
     raw = await _read_bounded(file, _MAX_UPLOAD_BYTES)
 
     storage_key = get_evidence_storage().put_bytes(
-        f"knowledge/{project_id}", raw, file.content_type or "application/octet-stream"
+        f"knowledge/{project.id}", raw, file.content_type or "application/octet-stream"
     )
 
     source = KnowledgeSource(
-        project_id=project_id,
+        project_id=project.id,
         filename=file.filename or "unnamed",
         source_type=source_type,
         storage_key=storage_key,
-        chroma_collection=get_chroma_client().collection_name(project_id),
+        chroma_collection=get_chroma_client().collection_name(project.id),
     )
     session.add(source)
     await session.commit()
@@ -105,21 +104,20 @@ async def upload_knowledge_source(
 
 @router.get("", response_model=list[KnowledgeSourceOut])
 async def list_knowledge_sources(
-    project_id: uuid.UUID, session: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)
+    project: Project = Depends(get_owned_project), session: AsyncSession = Depends(get_db)
 ) -> list[KnowledgeSource]:
-    result = await session.execute(select(KnowledgeSource).where(KnowledgeSource.project_id == project_id))
+    result = await session.execute(select(KnowledgeSource).where(KnowledgeSource.project_id == project.id))
     return list(result.scalars().all())
 
 
 @router.delete("/{source_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_knowledge_source(
-    project_id: uuid.UUID,
     source_id: uuid.UUID,
+    project: Project = Depends(get_owned_project),
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
 ) -> None:
     source = await session.get(KnowledgeSource, source_id)
-    if source is None or source.project_id != project_id:
+    if source is None or source.project_id != project.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Knowledge source not found")
     await session.delete(source)
     await session.commit()
@@ -127,8 +125,7 @@ async def delete_knowledge_source(
 
 @router.post("/search", response_model=list[SemanticSearchResult])
 async def search_knowledge(
-    project_id: uuid.UUID,
     payload: SemanticSearchRequest,
-    user: User = Depends(get_current_user),
+    project: Project = Depends(get_owned_project),
 ) -> list[SemanticSearchResult]:
-    return semantic_search(project_id, payload.query, payload.top_k)
+    return semantic_search(project.id, payload.query, payload.top_k)

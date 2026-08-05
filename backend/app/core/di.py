@@ -8,6 +8,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import decode_token
+from app.db.models.project import Project
 from app.db.models.user import User
 from app.db.session import get_session
 from app.domain.enums import UserRole
@@ -39,6 +40,25 @@ async def get_current_user(
     if user is None or not user.is_active:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "User not found or inactive")
     return user
+
+
+async def get_owned_project(
+    project_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> Project:
+    """Every route that takes a project_id in its path should depend on this
+    instead of doing its own `session.get(Project, project_id)` — until this
+    existed, no route checked ownership at all: any authenticated user could
+    read or write any other user's projects (and everything hanging off one —
+    credentials, requirements, runs) just by knowing/guessing the UUID. 404
+    (not 403) on a mismatch deliberately, so a probing request can't
+    distinguish "doesn't exist" from "exists but isn't yours."
+    """
+    project = await session.get(Project, project_id)
+    if project is None or project.owner_id != user.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
+    return project
 
 
 def require_role(minimum: UserRole):

@@ -7,11 +7,12 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.di import get_current_user, get_db
+from app.db.models.project import Project
 from app.db.models.run import Run
 from app.db.models.user import User
 from app.llm.base import ChatMessage
@@ -31,6 +32,13 @@ Be concise and specific — cite requirement text or run outcomes where relevant
 async def send_chat_message(
     payload: ChatMessageRequest, session: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)
 ) -> ChatMessageResponse:
+    # project_id arrives in the body here, not the path, so this can't use the
+    # Depends(get_owned_project) path-param dependency every other router uses —
+    # same ownership check, just inline.
+    project = await session.get(Project, payload.project_id)
+    if project is None or project.owner_id != user.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
+
     knowledge_hits = semantic_search(payload.project_id, payload.message, top_k=5)
 
     recent_runs = (

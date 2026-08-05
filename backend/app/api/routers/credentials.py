@@ -6,10 +6,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.di import get_current_user, get_db
+from app.core.di import get_db, get_owned_project
 from app.core.security import get_cipher
 from app.db.models.credential import CredentialProfile
-from app.db.models.user import User
+from app.db.models.project import Project
 from app.schemas.credential import CredentialCreate, CredentialOut
 
 router = APIRouter(prefix="/projects/{project_id}/credentials", tags=["credentials"])
@@ -31,16 +31,15 @@ def _to_out(profile: CredentialProfile) -> CredentialOut:
 
 @router.post("", response_model=CredentialOut, status_code=status.HTTP_201_CREATED)
 async def create_credential(
-    project_id: uuid.UUID,
     payload: CredentialCreate,
+    project: Project = Depends(get_owned_project),
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
 ) -> CredentialOut:
     cipher = get_cipher()
     import json
 
     profile = CredentialProfile(
-        project_id=project_id,
+        project_id=project.id,
         label=payload.label,
         encrypted_username=cipher.encrypt(payload.username) if payload.username else None,
         encrypted_password=cipher.encrypt(payload.password) if payload.password else None,
@@ -57,23 +56,22 @@ async def create_credential(
 
 @router.get("", response_model=list[CredentialOut])
 async def list_credentials(
-    project_id: uuid.UUID, session: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)
+    project: Project = Depends(get_owned_project), session: AsyncSession = Depends(get_db)
 ) -> list[CredentialOut]:
     profiles = (
-        await session.execute(select(CredentialProfile).where(CredentialProfile.project_id == project_id))
+        await session.execute(select(CredentialProfile).where(CredentialProfile.project_id == project.id))
     ).scalars().all()
     return [_to_out(p) for p in profiles]
 
 
 @router.delete("/{credential_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_credential(
-    project_id: uuid.UUID,
     credential_id: uuid.UUID,
+    project: Project = Depends(get_owned_project),
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
 ) -> None:
     profile = await session.get(CredentialProfile, credential_id)
-    if profile is None or profile.project_id != project_id:
+    if profile is None or profile.project_id != project.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Credential not found")
     await session.delete(profile)
     await session.commit()

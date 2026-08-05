@@ -7,10 +7,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.di import get_current_user, get_db
+from app.core.di import get_db, get_owned_project
+from app.db.models.project import Project
 from app.db.models.report import Report
 from app.db.models.run import Run
-from app.db.models.user import User
 from app.domain.enums import ReportFormat
 from app.evidence.storage import get_evidence_storage
 from app.reports.jira_report import render_jira
@@ -20,25 +20,30 @@ from app.schemas.report import ReportGenerateRequest, ReportOut
 router = APIRouter(prefix="/projects/{project_id}/runs/{run_id}/reports", tags=["reports"])
 
 
+async def _get_owned_run(run_id: uuid.UUID, project: Project, session: AsyncSession) -> Run:
+    run = await session.get(Run, run_id)
+    if run is None or run.project_id != project.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Run not found")
+    return run
+
+
 @router.get("", response_model=list[ReportOut])
 async def list_reports(
-    project_id: uuid.UUID, run_id: uuid.UUID, session: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)
+    run_id: uuid.UUID, project: Project = Depends(get_owned_project), session: AsyncSession = Depends(get_db)
 ) -> list[Report]:
+    await _get_owned_run(run_id, project, session)
     result = await session.execute(select(Report).where(Report.run_id == run_id))
     return list(result.scalars().all())
 
 
 @router.post("", response_model=list[ReportOut], status_code=status.HTTP_201_CREATED)
 async def generate_reports(
-    project_id: uuid.UUID,
     run_id: uuid.UUID,
     payload: ReportGenerateRequest,
+    project: Project = Depends(get_owned_project),
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
 ) -> list[Report]:
-    run = await session.get(Run, run_id)
-    if run is None or run.project_id != project_id:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Run not found")
+    run = await _get_owned_run(run_id, project, session)
     if run.report_markdown is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Run has not finished producing a report yet")
 
@@ -79,12 +84,12 @@ async def generate_reports(
 
 @router.get("/{report_id}/url")
 async def get_report_url(
-    project_id: uuid.UUID,
     run_id: uuid.UUID,
     report_id: uuid.UUID,
+    project: Project = Depends(get_owned_project),
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
 ) -> dict[str, str]:
+    await _get_owned_run(run_id, project, session)
     report = await session.get(Report, report_id)
     if report is None or report.run_id != run_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Report not found")

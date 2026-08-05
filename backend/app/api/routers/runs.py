@@ -5,10 +5,10 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.di import get_current_user, get_db
+from app.core.di import get_db, get_owned_project
+from app.db.models.project import Project
 from app.db.models.requirement import Requirement
 from app.db.models.run import Run
-from app.db.models.user import User
 from app.db.repositories.runs import RunRepository
 from app.domain.enums import RunStatus
 from app.evidence.storage import get_evidence_storage
@@ -21,16 +21,15 @@ router = APIRouter(prefix="/projects/{project_id}/runs", tags=["runs"])
 
 @router.post("", response_model=RunOut, status_code=status.HTTP_201_CREATED)
 async def create_run(
-    project_id: uuid.UUID,
     payload: RunCreate,
+    project: Project = Depends(get_owned_project),
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
 ) -> Run:
     requirement = await session.get(Requirement, payload.requirement_id)
-    if requirement is None or requirement.project_id != project_id:
+    if requirement is None or requirement.project_id != project.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Requirement not found")
 
-    run = Run(project_id=project_id, requirement_id=payload.requirement_id, status=RunStatus.QUEUED)
+    run = Run(project_id=project.id, requirement_id=payload.requirement_id, status=RunStatus.QUEUED)
     session.add(run)
     await session.commit()
     # RunOut serializes `steps` (and each step's `evidence`). That relationship was never
@@ -48,26 +47,26 @@ async def create_run(
 
 
 @router.get("", response_model=list[RunOut])
-async def list_runs(project_id: uuid.UUID, session: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)) -> list[Run]:
-    return await RunRepository(session).list_for_project(project_id)
+async def list_runs(project: Project = Depends(get_owned_project), session: AsyncSession = Depends(get_db)) -> list[Run]:
+    return await RunRepository(session).list_for_project(project.id)
 
 
 @router.get("/{run_id}", response_model=RunOut)
 async def get_run(
-    project_id: uuid.UUID, run_id: uuid.UUID, session: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)
+    run_id: uuid.UUID, project: Project = Depends(get_owned_project), session: AsyncSession = Depends(get_db)
 ) -> Run:
     run = await RunRepository(session).get_with_steps(run_id)
-    if run is None or run.project_id != project_id:
+    if run is None or run.project_id != project.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Run not found")
     return run
 
 
 @router.post("/{run_id}/cancel", response_model=RunOut)
 async def cancel_run(
-    project_id: uuid.UUID, run_id: uuid.UUID, session: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)
+    run_id: uuid.UUID, project: Project = Depends(get_owned_project), session: AsyncSession = Depends(get_db)
 ) -> Run:
     run = await session.get(Run, run_id)
-    if run is None or run.project_id != project_id:
+    if run is None or run.project_id != project.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Run not found")
     if run.status in (RunStatus.PASSED, RunStatus.FAILED, RunStatus.ERRORED, RunStatus.CANCELLED):
         raise HTTPException(status.HTTP_409_CONFLICT, "Run already finished")
@@ -83,14 +82,16 @@ async def cancel_run(
 
 @router.get("/{run_id}/evidence/{evidence_id}/url")
 async def get_evidence_url(
-    project_id: uuid.UUID,
     run_id: uuid.UUID,
     evidence_id: uuid.UUID,
+    project: Project = Depends(get_owned_project),
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
 ) -> dict[str, str]:
     from app.db.models.run import Evidence, Step
 
+    run = await session.get(Run, run_id)
+    if run is None or run.project_id != project.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Run not found")
     evidence = await session.get(Evidence, evidence_id)
     if evidence is None or evidence.storage_key is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Evidence not found or has no binary artifact")
