@@ -73,12 +73,38 @@ interface RequestOptions {
   body?: unknown;
   isForm?: boolean;
   signal?: AbortSignal;
-  /** Skip attaching the bearer token — only used for /auth/login and /auth/register. */
+  /** Skip attaching the bearer token — only used for /auth/login, /auth/register, /auth/refresh. */
   skipAuth?: boolean;
+  /** Internal: set when this call is itself the one retry after a token refresh, so a second
+   * 401 doesn't loop back into another refresh attempt. Not for callers to pass directly. */
+  _isRetry?: boolean;
+}
+
+// Concurrent requests that all hit a 401 at once (e.g. a page firing several queries on load
+// with an expired token) must not each kick off their own refresh — they'd race to consume the
+// same refresh token and all but one would get a stale-token error back. Sharing one in-flight
+// promise means every caller awaits the same refresh instead of duplicating it.
+let refreshPromise: Promise<TokenResponse | null> | null = null;
+
+async function refreshAccessToken(): Promise<TokenResponse | null> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return null;
+  if (!refreshPromise) {
+    refreshPromise = request<TokenResponse>("/auth/refresh", {
+      method: "POST",
+      body: { refresh_token: refreshToken },
+      skipAuth: true,
+    })
+      .catch(() => null)
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = "GET", body, isForm = false, signal, skipAuth = false } = options;
+  const { method = "GET", body, isForm = false, signal, skipAuth = false, _isRetry = false } = options;
 
   const headers: Record<string, string> = {};
   if (!isForm && body !== undefined) headers["Content-Type"] = "application/json";
@@ -103,7 +129,21 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   if (response.status === 401) {
-    onUnauthorized?.();
+    // skipAuth calls are /auth/login, /auth/register, or /auth/refresh itself — a 401 there is a
+    // normal rejected credential/token, not an expired session, so it's left to the caller (the
+    // login form shows "invalid email or password"; refreshAccessToken() above just returns null).
+    // A retry that still 401s means the refresh token itself is no good — nothing left to try.
+    if (!skipAuth && !_isRetry) {
+      const refreshed = await refreshAccessToken();
+      if (refreshed) {
+        setTokens(refreshed);
+        return request<T>(path, { ...options, _isRetry: true });
+      }
+    }
+    if (!skipAuth) {
+      setTokens(null);
+      onUnauthorized?.();
+    }
     throw new ApiError(401, "Unauthorized");
   }
 
