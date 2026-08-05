@@ -15,6 +15,7 @@ import type {
   RequirementAnalysis,
   RequirementCreate,
   RequirementOut,
+  RequirementUpdate,
   RunCreate,
   RunOut,
   SemanticSearchRequest,
@@ -252,6 +253,11 @@ export const requirementsApi = {
     request<RequirementOut>(`/projects/${projectId}/requirements/${requirementId}`),
   create: (projectId: string, payload: RequirementCreate) =>
     request<RequirementOut>(`/projects/${projectId}/requirements`, { method: "POST", body: payload }),
+  update: (projectId: string, requirementId: string, payload: RequirementUpdate) =>
+    request<RequirementOut>(`/projects/${projectId}/requirements/${requirementId}`, {
+      method: "PATCH",
+      body: payload,
+    }),
   analyze: (projectId: string, requirementId: string) =>
     request<RequirementAnalysis>(`/projects/${projectId}/requirements/${requirementId}/analyze`, {
       method: "POST",

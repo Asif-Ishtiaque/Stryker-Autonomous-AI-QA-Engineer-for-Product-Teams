@@ -10,6 +10,10 @@ class RequirementCreate(BaseModel):
     credential_profile_id: uuid.UUID | None = None
 
 
+class RequirementUpdate(BaseModel):
+    credential_profile_id: uuid.UUID | None = None
+
+
 class RequirementAnalysis(BaseModel):
     """Structured output of the RequirementAgent."""
 

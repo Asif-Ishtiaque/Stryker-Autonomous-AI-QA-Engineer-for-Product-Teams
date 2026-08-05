@@ -8,13 +8,28 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.requirement_agent import run_requirement_agent
 from app.core.di import get_db, get_owned_project
+from app.db.models.credential import CredentialProfile
 from app.db.models.project import Project
 from app.db.models.requirement import Requirement
 from app.llm.registry import get_llm_provider
 from app.rag.retriever import context_snippets_for_requirement
-from app.schemas.requirement import RequirementAnalysis, RequirementCreate, RequirementOut
+from app.schemas.requirement import RequirementAnalysis, RequirementCreate, RequirementOut, RequirementUpdate
 
 router = APIRouter(prefix="/projects/{project_id}/requirements", tags=["requirements"])
+
+
+async def _check_credential_belongs_to_project(
+    credential_profile_id: uuid.UUID | None, project: Project, session: AsyncSession
+) -> None:
+    """Without this, a requirement could reference any credential UUID in the
+    system — including another user's — and the run worker would happily
+    decrypt and use it (app/execution/tasks.py has no ownership check either,
+    it trusts whatever credential_profile_id is stored on the requirement)."""
+    if credential_profile_id is None:
+        return
+    profile = await session.get(CredentialProfile, credential_profile_id)
+    if profile is None or profile.project_id != project.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Credential profile not found")
 
 
 @router.post("", response_model=RequirementOut, status_code=status.HTTP_201_CREATED)
@@ -23,6 +38,7 @@ async def create_requirement(
     project: Project = Depends(get_owned_project),
     session: AsyncSession = Depends(get_db),
 ) -> Requirement:
+    await _check_credential_belongs_to_project(payload.credential_profile_id, project, session)
     requirement = Requirement(project_id=project.id, **payload.model_dump())
     session.add(requirement)
     await session.commit()
@@ -46,6 +62,23 @@ async def get_requirement(
     requirement = await session.get(Requirement, requirement_id)
     if requirement is None or requirement.project_id != project.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Requirement not found")
+    return requirement
+
+
+@router.patch("/{requirement_id}", response_model=RequirementOut)
+async def update_requirement(
+    requirement_id: uuid.UUID,
+    payload: RequirementUpdate,
+    project: Project = Depends(get_owned_project),
+    session: AsyncSession = Depends(get_db),
+) -> Requirement:
+    requirement = await session.get(Requirement, requirement_id)
+    if requirement is None or requirement.project_id != project.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Requirement not found")
+
+    await _check_credential_belongs_to_project(payload.credential_profile_id, project, session)
+    requirement.credential_profile_id = payload.credential_profile_id
+    await session.commit()
     return requirement
 
 

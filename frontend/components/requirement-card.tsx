@@ -7,8 +7,9 @@ import { toast } from "sonner";
 import { Loader2, Play, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RequirementAnalysisCard } from "@/components/requirement-analysis-card";
-import { useAnalyzeRequirement, useCreateRun, useCredentials } from "@/lib/queries";
+import { useAnalyzeRequirement, useCreateRun, useCredentials, useUpdateRequirement } from "@/lib/queries";
 import { ApiError } from "@/lib/api-client";
 import type { RequirementOut } from "@/lib/types";
 
@@ -16,11 +17,20 @@ export function RequirementCard({ projectId, requirement }: { projectId: string;
   const router = useRouter();
   const analyze = useAnalyzeRequirement(projectId);
   const createRun = useCreateRun(projectId);
+  const updateRequirement = useUpdateRequirement(projectId);
   const { data: credentials } = useCredentials(projectId);
   const [analysis, setAnalysis] = useState(requirement.ai_analysis);
   const [showAnalysis, setShowAnalysis] = useState(false);
 
-  const credentialLabel = credentials?.find((c) => c.id === requirement.credential_profile_id)?.label;
+  async function handleCredentialChange(value: string) {
+    const credentialProfileId = value === "none" ? null : value;
+    try {
+      await updateRequirement.mutateAsync({ requirementId: requirement.id, payload: { credential_profile_id: credentialProfileId } });
+      toast.success(credentialProfileId ? "Credential profile attached" : "Credential profile removed");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to update credential profile.");
+    }
+  }
 
   async function handleAnalyze() {
     const toastId = toast.loading("Analyzing requirement… this can take up to a minute.");
@@ -61,7 +71,26 @@ export function RequirementCard({ projectId, requirement }: { projectId: string;
           </div>
         </div>
 
-        {credentialLabel && <p className="mt-2 text-xs text-muted-foreground">Uses credential profile: {credentialLabel}</p>}
+        <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span>Credential profile:</span>
+          <Select
+            value={requirement.credential_profile_id ?? "none"}
+            onValueChange={handleCredentialChange}
+            disabled={updateRequirement.isPending}
+          >
+            <SelectTrigger className="h-6 w-auto gap-1 rounded-md border-none bg-transparent px-1.5 py-0 text-xs text-foreground shadow-none hover:bg-accent">
+              <SelectValue placeholder="No credentials needed" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No credentials needed</SelectItem>
+              {credentials?.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         <AnimatePresence initial={false}>
           {analysis && showAnalysis && (

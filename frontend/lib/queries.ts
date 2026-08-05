@@ -17,6 +17,7 @@ import type {
   ProjectUpdate,
   ReportGenerateRequest,
   RequirementCreate,
+  RequirementUpdate,
   RunCreate,
   SemanticSearchRequest,
 } from "./types";
@@ -168,6 +169,15 @@ export function useCreateRequirement(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: RequirementCreate) => requirementsApi.create(projectId, payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.requirements(projectId) }),
+  });
+}
+
+export function useUpdateRequirement(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ requirementId, payload }: { requirementId: string; payload: RequirementUpdate }) =>
+      requirementsApi.update(projectId, requirementId, payload),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.requirements(projectId) }),
   });
 }

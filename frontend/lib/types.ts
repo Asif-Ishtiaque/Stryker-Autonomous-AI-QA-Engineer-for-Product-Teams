@@ -247,6 +247,10 @@ export interface RequirementCreate {
   credential_profile_id?: string | null;
 }
 
+export interface RequirementUpdate {
+  credential_profile_id: string | null;
+}
+
 export interface RequirementAnalysis {
   understood_intent: string;
   expected_outcomes: string[];
