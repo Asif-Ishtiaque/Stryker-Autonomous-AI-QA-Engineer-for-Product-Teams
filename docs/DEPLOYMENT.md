@@ -7,43 +7,56 @@ The whole stack — Postgres, Redis, ChromaDB, MinIO, OpenSearch, Ollama, OTel c
 ```bash
 cp .env.example .env
 # generate JWT_SECRET and CREDENTIAL_ENCRYPTION_KEY (see below) and paste into .env
-docker compose --profile cpu up --build
+docker compose up --build
 ```
 
-### CPU vs. GPU profile
+This starts every service except the optional containerized Ollama profiles — see below for why, and how to use one of those instead.
 
-Ollama is defined twice under mutually exclusive Compose profiles, both listening on `11434`:
+### Running Ollama natively (default)
+
+The `backend` and `worker` services hardcode `LLM_BASE_URL: http://host.docker.internal:11434/v1` directly in `docker-compose.yml`'s `environment:` block — this takes priority over anything set in `.env` (Compose's `environment:` always wins over `env_file:` for the same key), so **editing `LLM_BASE_URL` in `.env` has no effect** unless you also edit `docker-compose.yml`.
+
+By default the stack expects a native Ollama install running on the *host* machine, not a container:
+
+```bash
+brew install ollama          # or your platform's equivalent
+ollama serve                 # if not already running as a service
+ollama pull llama3.1         # or whatever LLM_MODEL you set in .env
+docker compose up --build    # no --profile needed
+```
+
+This is faster than running Ollama inside a container, especially on Apple Silicon, where a containerized Ollama gets no Metal GPU access and is CPU-only (5-10x+ slower).
+
+Make sure `LLM_MODEL` in `.env` matches a model you've actually pulled natively — the two are independent and a mismatch fails silently until the first `/analyze` or run.
+
+### Running Ollama in a container instead
+
+Two optional, mutually-exclusive Ollama containers are defined for hosts without a convenient native install (e.g. Linux hosts, or CI):
 
 | Service | Profile | Use when |
 |---|---|---|
-| `ollama-cpu` | `cpu` | No NVIDIA GPU available (default recommendation, works everywhere) |
+| `ollama-cpu` | `cpu` | No NVIDIA GPU available |
 | `ollama` | `gpu` | An NVIDIA GPU is available — the service requests `driver: nvidia`, `capabilities: [gpu]` |
 
-Run one or the other, never both:
+To use one of these instead of native Ollama, start it and then **edit `LLM_BASE_URL` directly in `docker-compose.yml`** (under both `backend` and `worker`) to point at it — `http://ollama-cpu:11434/v1` or `http://ollama:11434/v1`:
 
 ```bash
-docker compose --profile cpu up --build   # CPU inference
-docker compose --profile gpu up --build   # GPU inference
-```
-
-`make up` runs the CPU profile. The `backend` and `worker` services hardcode `LLM_BASE_URL: http://ollama-cpu:11434/v1` in `docker-compose.yml` — if you switch to the `gpu` profile, override `LLM_BASE_URL` to `http://ollama:11434/v1` (both containers listen on the same port, so only the hostname changes).
-
-After the stack is up, pull a model into whichever Ollama container you're running:
-
-```bash
+docker compose --profile cpu up --build   # or --profile gpu
 make seed-model   # docker compose exec ollama-cpu ollama pull llama3.1
 ```
+
+`make seed-model` assumes the `cpu` profile container; adjust the container name in the Makefile if you're using `gpu`.
 
 ### Makefile targets
 
 | Target | Command | Purpose |
 |---|---|---|
-| `make up` | `docker compose --profile cpu up --build` | Start the full stack (CPU profile) |
+| `make up` | `docker compose up --build` | Start the full stack (expects native Ollama on the host) |
 | `make down` | `docker compose down` | Stop everything |
 | `make logs` | `docker compose logs -f backend worker` | Tail backend + worker logs |
 | `make migrate` | `docker compose exec backend alembic upgrade head` | Apply migrations manually |
 | `make revision m="..."` | `docker compose exec backend alembic revision --autogenerate -m "$(m)"` | Generate a new migration from model changes |
-| `make seed-model` | `docker compose exec ollama-cpu ollama pull llama3.1` | Pull the default local model |
+| `make seed-model` | `ollama pull llama3.1` | Pull the default local model into native host Ollama |
 | `make backend-shell` / `make worker-shell` | `docker compose exec backend|worker bash` | Shell into a running container |
 | `make fmt` | `cd backend && ruff format . && ruff check --fix .` | Format + autofix |
 | `make lint` | `cd backend && ruff check . && mypy app` | Lint + type-check |

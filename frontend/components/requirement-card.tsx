@@ -23,12 +23,14 @@ export function RequirementCard({ projectId, requirement }: { projectId: string;
   const credentialLabel = credentials?.find((c) => c.id === requirement.credential_profile_id)?.label;
 
   async function handleAnalyze() {
+    const toastId = toast.loading("Analyzing requirement… this can take up to a minute.");
     try {
       const result = await analyze.mutateAsync(requirement.id);
       setAnalysis(result);
       setShowAnalysis(true);
+      toast.success("Analysis complete", { id: toastId });
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Analysis failed.");
+      toast.error(err instanceof ApiError ? err.message : "Analysis failed.", { id: toastId });
     }
   }
 
@@ -50,7 +52,7 @@ export function RequirementCard({ projectId, requirement }: { projectId: string;
           <div className="flex shrink-0 items-center gap-2">
             <Button variant="outline" size="sm" onClick={handleAnalyze} disabled={analyze.isPending}>
               {analyze.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-              Analyze
+              {analyze.isPending ? "Analyzing…" : "Analyze"}
             </Button>
             <Button size="sm" onClick={handleRun} disabled={createRun.isPending}>
               {createRun.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}

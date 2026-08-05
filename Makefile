@@ -1,7 +1,7 @@
 .PHONY: up down logs migrate seed-model backend-shell worker-shell fmt lint test
 
 up:
-	docker compose --profile cpu up --build
+	docker compose up --build
 
 down:
 	docker compose down
@@ -16,7 +16,11 @@ revision:
 	docker compose exec backend alembic revision --autogenerate -m "$(m)"
 
 seed-model:
-	docker compose exec ollama-cpu ollama pull llama3.1
+	# Pulls into the native host Ollama install that backend/worker point at by default
+	# (see docs/DEPLOYMENT.md "Running Ollama natively"). If you're running the ollama-cpu
+	# or ollama container profile instead, pull into that container directly, e.g.:
+	# docker compose exec ollama-cpu ollama pull llama3.1
+	ollama pull llama3.1
 
 backend-shell:
 	docker compose exec backend bash
