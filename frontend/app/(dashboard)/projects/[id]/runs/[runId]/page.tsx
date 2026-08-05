@@ -4,7 +4,7 @@ import { useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowLeft, Ban, Loader2, ShieldAlert, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Ban, ListChecks, Loader2, ShieldAlert, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,7 @@ import { StepTimeline } from "@/components/step-timeline";
 import { ReportMenu } from "@/components/report-menu";
 import { LiveBrowserStream } from "@/components/live-browser-stream";
 import { ReasoningPanel, LiveConsolePanel, LiveNetworkPanel } from "@/components/mission-control-panels";
+import { CollapsiblePanel } from "@/components/collapsible-panel";
 import { ErrorState } from "@/components/error-state";
 import { useCancelRun, useRun, qk } from "@/lib/queries";
 import { useRunEvents } from "@/lib/ws";
@@ -161,18 +162,17 @@ export default function RunPage() {
         </div>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-medium text-muted-foreground">Execution timeline</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {usingFinalSteps ? (
-            <StepTimeline projectId={projectId} runId={runId} steps={run.steps} />
-          ) : (
-            <StepTimeline projectId={projectId} runId={runId} liveSteps={liveSteps} />
-          )}
-        </CardContent>
-      </Card>
+      <CollapsiblePanel
+        icon={<ListChecks className="h-4 w-4" />}
+        title="Execution timeline"
+        contentClassName="max-h-[500px]"
+      >
+        {usingFinalSteps ? (
+          <StepTimeline projectId={projectId} runId={runId} steps={run.steps} />
+        ) : (
+          <StepTimeline projectId={projectId} runId={runId} liveSteps={liveSteps} />
+        )}
+      </CollapsiblePanel>
 
       {isLive && (
         <div className="grid gap-4 lg:grid-cols-2">
