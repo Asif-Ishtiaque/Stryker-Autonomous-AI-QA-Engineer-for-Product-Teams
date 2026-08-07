@@ -77,9 +77,31 @@ class WebExecutor(Executor):
         asyncio.ensure_future(self.on_event({"run_status": "running", "console": entry}))
 
     def _on_request_finished(self, req: Any) -> None:
-        entry = {"url": req.url, "method": req.method}
+        # requestfinished fires once the response is available, so req.response() resolves
+        # immediately here — without a status code, evidence could never distinguish a
+        # successful save from a silent 500, which is the single most common root cause of
+        # "the UI just didn't update" failures.
+        asyncio.ensure_future(self._capture_request_finished(req))
+
+    async def _capture_request_finished(self, req: Any) -> None:
+        entry: dict[str, Any] = {"url": req.url, "method": req.method}
+        try:
+            response = await req.response()
+            if response is not None:
+                entry["status"] = response.status
+                if response.status >= 400:
+                    # Truncated + best-effort: error response bodies are usually small JSON
+                    # ({"detail": "..."}) and are exactly what a root-cause analyzer needs to
+                    # cite, but some responses aren't text (binary, streamed) or are huge.
+                    try:
+                        body = await response.text()
+                        entry["response_body"] = body[:500]
+                    except Exception:  # noqa: BLE001 — body capture is a bonus, not required
+                        pass
+        except Exception as exc:  # noqa: BLE001 — evidence capture must never break the run
+            entry["status_error"] = str(exc)
         self._network_buffer.append(entry)
-        asyncio.ensure_future(self.on_event({"run_status": "running", "network": entry}))
+        await self.on_event({"run_status": "running", "network": entry})
 
     async def teardown(self) -> None:
         try:
@@ -95,6 +117,12 @@ class WebExecutor(Executor):
         assert self._page is not None, "setup() must be called before execute_step()"
         started = time.monotonic()
         evidence_refs: list[dict[str, Any]] = []
+        # Cleared per-step (not just capped at the last 50) so a step's evidence reflects what
+        # happened during THAT step — a shared rolling buffer let an earlier step's console/network
+        # activity bleed into a later step's evidence, which is exactly the kind of noise a root
+        # cause analyzer can't afford when trying to correlate a specific failure with its cause.
+        self._console_buffer.clear()
+        self._network_buffer.clear()
         target_desc = step.get("parameters", {}).get("description") or step["name"]
         await self.on_event(
             {"run_status": "running", "sequence": step["sequence"], "reasoning": f"{step['action_type']} — {target_desc}"}

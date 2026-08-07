@@ -12,6 +12,22 @@ class RunCreate(BaseModel):
     requirement_id: uuid.UUID
 
 
+class RootCauseAnalysis(BaseModel):
+    """Structured output of the ComparatorAgent's failure analysis — see
+    app.agents.comparator_agent.ROOT_CAUSE_SCHEMA for the LLM-facing shape
+    this mirrors."""
+
+    observed_behavior: str
+    expected_behavior: str
+    evidence: list[str]
+    root_cause: str
+    confidence: float
+    suggested_fix: str
+    affected_component: str
+    severity: str
+    likely_owner: str
+
+
 class EvidenceOut(BaseModel):
     id: uuid.UUID
     evidence_type: EvidenceType
@@ -49,6 +65,7 @@ class RunOut(BaseModel):
     confidence_score: float | None
     severity: str | None
     root_cause_hypothesis: str | None
+    root_cause_analysis: RootCauseAnalysis | None
     error_message: str | None
     report_markdown: str | None
     started_at: dt.datetime | None

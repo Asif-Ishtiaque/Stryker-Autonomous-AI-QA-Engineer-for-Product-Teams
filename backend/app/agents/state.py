@@ -65,7 +65,8 @@ class RunState(TypedDict, total=False):
     # --- ComparatorAgent output ---
     confidence_score: float
     severity: str
-    root_cause_hypothesis: str | None
+    root_cause_hypothesis: str | None  # one-line summary, kept for older report/UI consumers
+    root_cause_analysis: dict[str, Any] | None  # structured RootCauseAnalysis, see schemas/run.py
     final_status: str  # passed | failed | errored
 
     # --- ReportAgent output ---

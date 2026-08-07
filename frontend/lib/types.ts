@@ -276,6 +276,18 @@ export interface RunCreate {
   requirement_id: string;
 }
 
+export interface RootCauseAnalysis {
+  observed_behavior: string;
+  expected_behavior: string;
+  evidence: string[];
+  root_cause: string;
+  confidence: number;
+  suggested_fix: string;
+  affected_component: string;
+  severity: string;
+  likely_owner: string;
+}
+
 export interface EvidenceOut {
   id: string;
   evidence_type: EvidenceType;
@@ -309,6 +321,7 @@ export interface RunOut {
   confidence_score: number | null;
   severity: string | null;
   root_cause_hypothesis: string | null;
+  root_cause_analysis: RootCauseAnalysis | null;
   error_message: string | null;
   report_markdown: string | null;
   started_at: string | null;

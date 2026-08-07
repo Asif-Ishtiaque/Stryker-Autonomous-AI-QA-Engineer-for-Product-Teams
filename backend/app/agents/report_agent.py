@@ -23,7 +23,9 @@ A short numbered list of what was executed.
 For each validation finding, state whether it was met/not met/inconclusive and why.
 
 ## Root Cause (only if failed)
-The hypothesis, in plain language.
+Structured, not a one-liner: what was observed vs. what was expected, the concrete evidence that
+points to it (cite it — a console error, an HTTP status code, a specific finding), the root cause
+itself, your confidence in it, a suggested fix, the affected component, and the likely owning team.
 
 ## Recommendation
 One or two sentences on what to do next.
@@ -38,7 +40,7 @@ async def run_report_agent(state: RunState, llm: LLMProvider) -> RunState:
         f"Final status: {state.get('final_status')}\n"
         f"Confidence score: {state.get('confidence_score')}\n"
         f"Severity: {state.get('severity')}\n"
-        f"Root cause hypothesis: {state.get('root_cause_hypothesis')}\n"
+        f"Root cause analysis: {state.get('root_cause_analysis')}\n"
         f"Validation findings: {state.get('validation_findings')}\n"
         f"Plan: {state.get('plan')}\n"
         f"Step results: {state.get('step_results')}\n"
@@ -54,6 +56,7 @@ async def run_report_agent(state: RunState, llm: LLMProvider) -> RunState:
         "confidence_score": state.get("confidence_score"),
         "severity": state.get("severity"),
         "root_cause_hypothesis": state.get("root_cause_hypothesis"),
+        "root_cause_analysis": state.get("root_cause_analysis"),
         "expected_outcomes": state.get("expected_outcomes"),
         "inferred_validations": state.get("inferred_validations"),
         "identified_risks": state.get("identified_risks"),

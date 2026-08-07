@@ -25,6 +25,7 @@ class Run(TimestampMixin, Base):
     confidence_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     severity: Mapped[str | None] = mapped_column(String(20), nullable=True)
     root_cause_hypothesis: Mapped[str | None] = mapped_column(Text, nullable=True)
+    root_cause_analysis: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     report_markdown: Mapped[str | None] = mapped_column(Text, nullable=True)
 

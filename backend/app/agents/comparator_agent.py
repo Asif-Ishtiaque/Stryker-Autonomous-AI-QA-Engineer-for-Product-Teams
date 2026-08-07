@@ -1,33 +1,74 @@
 """ComparatorAgent — reduces validation findings + execution outcome into a
-single confidence score, severity, final status, and (on failure) a root
-cause hypothesis a developer can act on immediately.
+single confidence score, severity, final status, and (on failure) a
+structured root-cause analysis a developer can act on immediately.
 
 The confidence score is computed deterministically from the findings rather
 than asked of the LLM directly, so it's reproducible and auditable; the LLM
-is only used for the qualitative root-cause narrative when something failed.
+is only used for the qualitative root-cause analysis when something failed,
+and only from evidence actually captured during the run (console errors,
+network failures with status codes, validation findings) — never invented.
 """
 from __future__ import annotations
 
 import json
+from typing import Any
 
-from app.agents.state import RunState
+from app.agents.state import ExecutedStepResult, RunState
 from app.llm.base import ChatMessage, LLMProvider, parse_json_object
 
 ROOT_CAUSE_SCHEMA = {
     "type": "object",
     "properties": {
-        "root_cause_hypothesis": {"type": "string"},
+        "observed_behavior": {"type": "string"},
+        "expected_behavior": {"type": "string"},
+        "evidence": {"type": "array", "items": {"type": "string"}},
+        "root_cause": {"type": "string"},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "suggested_fix": {"type": "string"},
+        "affected_component": {
+            "type": "string",
+            "enum": ["frontend", "backend", "api", "database", "infra", "test_data", "third_party", "unknown"],
+        },
         "severity": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+        "likely_owner": {"type": "string"},
     },
-    "required": ["root_cause_hypothesis", "severity"],
+    "required": [
+        "observed_behavior",
+        "expected_behavior",
+        "evidence",
+        "root_cause",
+        "confidence",
+        "suggested_fix",
+        "affected_component",
+        "severity",
+        "likely_owner",
+    ],
 }
 
-ROOT_CAUSE_SYSTEM_PROMPT = """You are a senior engineer triaging a failed QA run. Given the requirement,
-the step that failed (or the business outcome that was not met), and the evidence gathered, write a
-one-to-three sentence root-cause hypothesis a developer could act on immediately (e.g. "Frontend grid
-cache not refreshed after invoice creation" rather than "test failed"). Also assign a severity based on
-business impact: critical (data loss/security/blocks core flow), high (feature broken), medium (degraded
-but workable), low (cosmetic). Respond with ONLY the JSON object, no prose."""
+ROOT_CAUSE_SYSTEM_PROMPT = """You are a senior engineer triaging a failed QA run. You are given the
+requirement, the step(s) that failed or the business outcome that was not met, and the evidence
+gathered during execution (console errors, network failures with HTTP status codes and response
+bodies, validation findings). Produce a structured root-cause analysis:
+
+- observed_behavior: what actually happened, in plain language, citing specifics (e.g. "clicking
+  'Create Invoice' returned no visible error but the invoice list stayed empty").
+- expected_behavior: what should have happened per the requirement.
+- evidence: 2-5 short strings, each citing a concrete signal from the input (a console error message,
+  an HTTP status code and URL, a specific validation finding). Never invent evidence that isn't present
+  in the input — if there is genuinely nothing concrete, say so as one of the evidence entries.
+- root_cause: a one-to-three sentence hypothesis a developer could act on immediately (e.g. "Frontend
+  grid cache not refreshed after invoice creation" rather than "test failed"). If the evidence is
+  inconclusive, hypothesize the most likely explanation and lower your confidence — never output "test
+  failed" alone.
+- confidence: 0-1, how confident you are in THIS specific root cause given the evidence available.
+- suggested_fix: one concrete, actionable suggestion for the developer who owns this.
+- affected_component: one of frontend, backend, api, database, infra, test_data, third_party, unknown.
+- severity: business impact — critical (data loss/security/blocks core flow), high (feature broken),
+  medium (degraded but workable), low (cosmetic).
+- likely_owner: the team most likely responsible (e.g. "frontend engineering", "backend/API team",
+  "infra/DevOps", "QA/test data") — infer from affected_component, not a guess at a person's name.
+
+Respond with ONLY the JSON object, no prose."""
 
 
 def _compute_confidence(state: RunState) -> tuple[float, str]:
@@ -67,14 +108,41 @@ def _compute_confidence(state: RunState) -> tuple[float, str]:
     return score, final_status
 
 
+def _summarize_failed_step(step: ExecutedStepResult, plan_by_seq: dict[int, str]) -> dict[str, Any]:
+    """Pulls out just the console errors and 4xx/5xx network failures captured
+    during this step, so the LLM sees a short, grounded signal instead of the
+    full evidence_refs list (which also carries screenshot/DOM storage keys
+    that are useless to it and would only burn context)."""
+    console_errors: list[dict[str, Any]] = []
+    network_failures: list[dict[str, Any]] = []
+    for ref in step.get("evidence_refs", []):
+        entries = (ref.get("inline_data") or {}).get("entries", [])
+        if ref.get("evidence_type") == "console_log":
+            console_errors.extend(e for e in entries if e.get("type") == "error")
+        elif ref.get("evidence_type") == "network_log":
+            network_failures.extend(e for e in entries if isinstance(e.get("status"), int) and e["status"] >= 400)
+
+    return {
+        "sequence": step["sequence"],
+        "step_name": plan_by_seq.get(step["sequence"]),
+        "error_message": step.get("error_message"),
+        "console_errors": console_errors,
+        "network_failures": network_failures,
+    }
+
+
 async def run_comparator_agent(state: RunState, llm: LLMProvider) -> RunState:
     confidence_score, final_status = _compute_confidence(state)
 
+    root_cause_analysis: dict[str, Any] | None = None
     root_cause_hypothesis: str | None = None
     severity: str | None = None
 
     if final_status in ("failed", "errored"):
-        failed_steps = [s for s in state.get("step_results", []) if s["status"] == "failed"]
+        plan_by_seq = {p["sequence"]: p["name"] for p in state.get("plan", [])}
+        failed_steps = [
+            _summarize_failed_step(s, plan_by_seq) for s in state.get("step_results", []) if s["status"] == "failed"
+        ]
         not_met_findings = [f for f in state.get("validation_findings", []) if f["outcome"] == "not_met"]
         user_prompt = json.dumps(
             {
@@ -92,7 +160,9 @@ async def run_comparator_agent(state: RunState, llm: LLMProvider) -> RunState:
             json_schema=ROOT_CAUSE_SCHEMA,
         )
         parsed = parse_json_object(raw)
-        root_cause_hypothesis = parsed["root_cause_hypothesis"]
+        parsed["confidence"] = max(0.0, min(1.0, parsed.get("confidence", 0.0)))
+        root_cause_analysis = parsed
+        root_cause_hypothesis = parsed["root_cause"]
         severity = parsed["severity"]
 
     return {
@@ -101,4 +171,5 @@ async def run_comparator_agent(state: RunState, llm: LLMProvider) -> RunState:
         "final_status": final_status,
         "severity": severity,
         "root_cause_hypothesis": root_cause_hypothesis,
+        "root_cause_analysis": root_cause_analysis,
     }

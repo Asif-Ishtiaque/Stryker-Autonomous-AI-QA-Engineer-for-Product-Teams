@@ -176,6 +176,7 @@ async def _persist_final_state(session, run: Run, state: dict) -> None:
     run.confidence_score = state.get("confidence_score")
     run.severity = state.get("severity")
     run.root_cause_hypothesis = state.get("root_cause_hypothesis")
+    run.root_cause_analysis = state.get("root_cause_analysis")
     run.error_message = state.get("execution_error")
     run.report_markdown = state.get("report_markdown")
     run.finished_at = dt.datetime.now(dt.timezone.utc)

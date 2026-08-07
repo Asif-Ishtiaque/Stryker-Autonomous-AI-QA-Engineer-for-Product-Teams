@@ -16,6 +16,7 @@ import { ReportMenu } from "@/components/report-menu";
 import { LiveBrowserStream } from "@/components/live-browser-stream";
 import { ReasoningPanel, LiveConsolePanel, LiveNetworkPanel } from "@/components/mission-control-panels";
 import { CollapsiblePanel } from "@/components/collapsible-panel";
+import { RootCauseCard } from "@/components/root-cause-card";
 import { ErrorState } from "@/components/error-state";
 import { useCancelRun, useRun, qk } from "@/lib/queries";
 import { useRunEvents } from "@/lib/ws";
@@ -144,7 +145,7 @@ export default function RunPage() {
                 {run.error_message}
               </p>
             )}
-            {run.root_cause_hypothesis && (
+            {!run.root_cause_analysis && run.root_cause_hypothesis && (
               <p className="mt-2 flex items-start gap-1.5 text-sm text-warning">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                 {run.root_cause_hypothesis}
@@ -180,6 +181,8 @@ export default function RunPage() {
           <LiveConsolePanel entries={consoleLog} />
         </div>
       )}
+
+      {run.root_cause_analysis && <RootCauseCard analysis={run.root_cause_analysis} />}
 
       {run.validation_checklist && Object.keys(run.validation_checklist).length > 0 && (
         <Card>
