@@ -1,4 +1,4 @@
-# Stryker — The Autonomous AI QA Engineer
+# Stryker — AI-Powered QA Automation Platform
 
 
 
